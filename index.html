@@ -524,15 +524,34 @@ a.btn { text-decoration: none; }
     if (/\bhoy\b(?! en dia)/.test(plain)) return iso(hoy);
     return '';
   }
+  /* Corrige la redacción de lo dictado: quita muletillas y palabras repetidas, ordena espacios y comas,
+     pone mayúscula al inicio de cada frase y punto al final. No cambia el sentido ni agrega información. */
+  function pulir(s) {
+    s = ' ' + String(s || '').replace(/\s+/g, ' ') + ' ';
+    s = s.replace(/([\s,])(?:e+h+|e+m+|m{2,}|o sea|digamos|como te digo|como le digo|me entiendes|verdad que s[ií]|por decirlo as[ií])(?=[\s,.;])/gi, '$1');
+    s = s.replace(/([\s,])(?:pues|bueno|este)(?=\s*,)/gi, '$1');
+    s = s.replace(/(^|\s)([a-záéíóúñ]+)(?:\s+\2)+(?=[\s,.;])/gi, '$1$2');
+    s = s.replace(/\s+([,.;:])/g, '$1').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/\.(?:\s*\.)+/g, '.').replace(/,\s*\./g, '.');
+    s = s.replace(/\s{2,}/g, ' ').trim().replace(/^[,;:.\s]+/, '');
+    s = s.replace(/(^|[.!?]\s+)([a-záéíóúñ])/g, function (m, a, b) { return a + b.toUpperCase(); });
+    if (s && !/[.!?]$/.test(s)) s += '.';
+    return s;
+  }
   function estructurarLocal(texto) {
-    var limpio = texto.replace(/\s+/g, ' ').trim(), plain = sinTildes(limpio);
+    var limpio = texto.replace(/\s+/g, ' ').trim();
+    /* El dictado llega sin puntos: se separa en ideas por los conectores que marcan el antes, el ahora y el después. */
+    if (limpio.length > 80 && !/[.!?]/.test(limpio.slice(0, -1))) {
+      limpio = limpio.replace(/\s+((?:pero |y )?(?:antes|anteriormente|ahora|por primera vez|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob))/gi, '. $1');
+    }
+    var plain = sinTildes(limpio);
     var frases = (limpio.match(/[^.!?]+[.!?]*/g) || [limpio]).map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 3; });
     var conPalabra = function (re) { return frases.filter(function (s) { return re.test(sinTildes(s)); }); };
     var r = { estado: {}, justificacion: {}, alertas: [], preguntas: [], hechoObservable: true }, m;
     var pon = function (k, v, est) { r[k] = v || null; r.estado[k] = v ? est : 'falta'; };
 
     var reCambio = /\b(antes|ahora|por primera vez|ya no|nunca|anteriormente|hasta ahora|desde entonces|a partir de)\b/;
-    pon('quePaso', frases.slice(0, 2).filter(function (s, i) { return i === 0 || !reCambio.test(sinTildes(s)); }).join(' '), 'narrativa');
+    var sinArranque = function (s) { return s.replace(/^(pero|y|entonces|bueno|pues)\s+/i, ''); };
+    pon('quePaso', pulir(frases.slice(0, 2).filter(function (s, i) { return i === 0 || !reCambio.test(sinTildes(s)); }).map(sinArranque).join(' ')), 'narrativa');
     pon('fechaHecho', fechaDe(plain), 'inferido');
 
     var actores = [], vistos = {};
@@ -540,7 +559,7 @@ a.btn { text-decoration: none; }
     pon('quien', actores.slice(0, 3).join(', '), 'inferido');
     var niv = puntuar(plain, REGLAS_NIVEL); pon('nivel', niv.valor, 'inferido');
 
-    pon('queCambio', conPalabra(/\b(antes|ahora|por primera vez|ya no|nunca|anteriormente|hasta ahora|desde entonces|a partir de)\b/).slice(0, 2).join(' '), 'narrativa');
+    pon('queCambio', pulir(conPalabra(reCambio).slice(0, 2).map(sinArranque).join(' ')), 'narrativa');
 
     var dim = puntuar(plain, REGLAS_DIM); pon('dimension', dim.valor, 'inferido');
     if (dim.valor) r.justificacion.dimension = 'el relato menciona «' + dim.palabras.slice(0, 3).join('», «') + '».';
@@ -559,7 +578,7 @@ a.btn { text-decoration: none; }
     if (con) r.justificacion.contribucion = 'por lo que el relato dice que hizo el proyecto.';
 
     var ev = conPalabra(/\b(acta|foto|fotografia|video|documento|mensaje|testimonio|informe|listado|lista de asistencia|captura|audio|oficio|resolucion|acuerdo firmado)\b/);
-    pon('evidencia', ev.slice(-1).join(' '), 'narrativa');
+    pon('evidencia', pulir(ev.slice(-1).map(sinArranque).join(' ')), 'narrativa');
 
     var alta = /\b(lo vi|estuve|presencie|asisti|participe|estabamos|tengo (el|la|una|un) (acta|foto|documento|video|informe|listado)|hay (acta|documento))/.test(plain);
     var baja = /\b(me contaron|dicen que|escuche que|me dijeron|rumor|al parecer|supuestamente|segun me)/.test(plain);
@@ -647,6 +666,8 @@ a.btn { text-decoration: none; }
   }
   var KEY_HASH ='d8ef1721bbab789b380e0aa64bfbca3d8c07094b1faa7389a5abc2a7894c3089';
   var CLAVE = '';
+  var CARPETA_EVID = 'https://crsorg.sharepoint.com/sites/TM-RESURGIR/Shared%20Documents/General/MEAL/Registros%20asistente/Evidencias';
+  var ES_TELEFONO = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
   async function sha(t) {
     var b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
     return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
@@ -855,12 +876,12 @@ a.btn { text-decoration: none; }
   function blobUrl(id) { return /^[\w-]{16,64}$/.test(String(id || '')) ? '/_blob/' + id : null; }
   function evidBox() {
     var cam = h('input', { id: 'file-cam', type: 'file', accept: 'image/*', capture: 'environment', hidden: true, tabindex: '-1' });
-    var doc = h('input', { id: 'file-doc', type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp,application/pdf', multiple: true, hidden: true, tabindex: '-1' });
+    var doc = h('input', { id: 'file-doc', type: 'file', multiple: true, hidden: true, tabindex: '-1' });
     [cam, doc].forEach(function (inp) { inp.addEventListener('change', function () { var fs = Array.prototype.slice.call(inp.files || [], 0, 5); inp.value = ''; subir(fs); }); });
     return h('div', { class: 'evid' },
       h('div', { class: 'actions', id: 'evid-actions', style: 'margin-top:0', hidden: true },
-        h('button', { class: 'btn small', type: 'button', text: 'Tomar foto', onclick: function () { cam.click(); } }),
-        h('button', { class: 'btn small', type: 'button', text: 'Subir foto o PDF', onclick: function () { doc.click(); } })),
+        h('button', { class: 'btn small', id: 'btn-cam', type: 'button', text: 'Tomar foto', hidden: !ES_TELEFONO, onclick: function () { cam.click(); } }),
+        h('button', { class: 'btn small', type: 'button', text: 'Subir documento', onclick: function () { doc.click(); } })),
       cam, doc,
       h('ul', { class: 'files', id: 'files' }),
       h('p', { class: 'status', id: 'evid-status', role: 'status', 'aria-live': 'polite', style: 'margin-top:0;min-height:0' }),
@@ -872,8 +893,34 @@ a.btn { text-decoration: none; }
     S.estado.evidencia = v ? 'manual' : (S.analizado ? 'falta' : 'pendiente');
     paintField('evidencia'); renderQuestions(); renderReview();
   }
+  /* Sin cuenta de Claude, el archivo viaja al flujo, que lo guarda en la carpeta Evidencias de SharePoint. */
+  async function subirAFlujo(files) {
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i], nombre = file.name || 'foto.jpg';
+      if (file.size > 15 * 1024 * 1024) { setStatus('#evid-status', nombre + ' pesa más de 15 MB. Sube una versión más liviana.', true); continue; }
+      setStatus('#evid-status', 'Subiendo ' + nombre + '…');
+      try {
+        var b64 = await new Promise(function (res, rej) {
+          var fr = new FileReader();
+          fr.onload = function () { res(String(fr.result).split(',')[1] || ''); }; fr.onerror = rej; fr.readAsDataURL(file);
+        });
+        var destino = Date.now().toString(36).toUpperCase() + '-' + nombre.replace(/[\\\/:*?"<>|#%&{}~]+/g, '_');
+        var r = await fetch(FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: CLAVE, tipo: 'archivo', nombre: destino, contenido: b64 }) });
+        if (!r.ok) throw { code: 'flujo_' + r.status };
+        S.archivos.push({ id: 'sp-' + destino, nombre: destino, tipo: file.type || '' });
+        var fr2 = fragmento(destino);
+        tocarEvidencia(S.ficha.evidencia ? S.ficha.evidencia + '; ' + fr2 : fr2);
+        setStatus('#evid-status', 'Archivo enviado a la carpeta Evidencias de SharePoint.');
+      } catch (e) {
+        setStatus('#evid-status', 'No se pudo subir ' + nombre + '. Revisa tu conexión a internet e intenta de nuevo.', true);
+      }
+      renderArchivos();
+    }
+  }
   async function subir(files) {
-    if (!assetsApi || !files.length) return;
+    if (!files.length) return;
+    if (!assetsApi && FLOW_URL) return subirAFlujo(files);
+    if (!assetsApi) return;
     for (var i = 0; i < files.length; i++) {
       var file = files[i], nombre = file.name || 'foto.jpg';
       var ext = (nombre.split('.').pop() || '').toLowerCase();
@@ -908,11 +955,11 @@ a.btn { text-decoration: none; }
     var ul = $('#files'); if (!ul) return; ul.textContent = '';
     S.archivos.forEach(function (a) {
       ul.append(h('li', null,
-        h('a', { href: blobUrl(a.id) || '#', target: '_blank', rel: 'noopener', text: a.nombre }),
+        h('a', { href: /^sp-/.test(a.id) ? CARPETA_EVID : (blobUrl(a.id) || '#'), target: '_blank', rel: 'noopener', text: a.nombre }),
         h('button', { type: 'button', 'aria-label': 'Quitar ' + a.nombre, text: 'Quitar', onclick: function () { quitarArchivo(a); } })));
     });
   }
-  function pintarAdjuntos() { $('#evid-actions').hidden = !assetsApi; $('#evid-note').hidden = !!assetsApi; }
+  function pintarAdjuntos() { var puede = !!assetsApi || !!FLOW_URL; $('#evid-actions').hidden = !puede; $('#evid-note').hidden = puede; }
   function quienRegistra() {
     var v = $('#por').value;
     if (v === '__otra') {
