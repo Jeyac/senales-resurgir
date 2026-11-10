@@ -521,8 +521,42 @@ a.btn { text-decoration: none; }
     if ((m = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/.exec(plain))) {
       var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : hoy.getFullYear(), d2 = new Date(y, +m[2] - 1, +m[1]); return isNaN(d2) ? '' : iso(d2);
     }
+    if ((m = /\bhace (\d+) dias?\b/.exec(plain))) { hoy.setDate(hoy.getDate() - (+m[1])); return iso(hoy); }
+    var DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    if ((m = /\bel (lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.exec(plain))) {
+      var dif = (hoy.getDay() - DIAS.indexOf(m[1]) + 7) % 7 || 7; hoy.setDate(hoy.getDate() - dif); return iso(hoy);
+    }
     if (/\bhoy\b(?! en dia)/.test(plain)) return iso(hoy);
     return '';
+  }
+  /* Convierte cantidades dichas con palabras («veinticinco familias», «dos mil quinientas personas») en cifras. */
+  function numerosADigitos(p) {
+    var U = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20, veintiun: 21, veintiuno: 21, veintiuna: 21, veintidos: 22, veintitres: 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26, veintisiete: 27, veintiocho: 28, veintinueve: 29 };
+    var T = { treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90 };
+    var C = { cien: 100, ciento: 100, doscientos: 200, doscientas: 200, trescientos: 300, trescientas: 300, cuatrocientos: 400, cuatrocientas: 400, quinientos: 500, quinientas: 500, seiscientos: 600, seiscientas: 600, setecientos: 700, setecientas: 700, ochocientos: 800, ochocientas: 800, novecientos: 900, novecientas: 900 };
+    var UNO = { un: 1, uno: 1, una: 1 };
+    var limpia = function (t) { return String(t || '').replace(/[.,;:]+$/, ''); };
+    var val = function (t, dentro) { return t in C ? C[t] : t in T ? T[t] : t in U ? U[t] : (dentro && t in UNO) ? 1 : t === 'mil' ? 1000 : null; };
+    var w = p.split(' '), out = [], i = 0;
+    while (i < w.length) {
+      if (val(limpia(w[i]), false) === null) { out.push(w[i]); i++; continue; }
+      var sum = 0, k = i, cola = '';
+      while (k < w.length) {
+        var t = limpia(w[k]), x = val(t, k > i);
+        if (x !== null) {
+          if (t === 'mil') sum = (sum || 1) * 1000; else sum += x;
+          cola = w[k].slice(t.length); k++;
+          if (cola) break;
+          continue;
+        }
+        if (t === 'y' && w[k] === 'y' && k + 1 < w.length && sum % 100 >= 30 && sum % 10 === 0) {
+          var sig = limpia(w[k + 1]); if ((sig in U && U[sig] < 10) || sig in UNO) { k++; continue; }
+        }
+        break;
+      }
+      out.push(String(sum) + cola); i = k;
+    }
+    return out.join(' ');
   }
   /* Corrige la redacción de lo dictado: quita muletillas y palabras repetidas, ordena espacios y comas,
      pone mayúscula al inicio de cada frase y punto al final. No cambia el sentido ni agrega información. */
@@ -541,10 +575,10 @@ a.btn { text-decoration: none; }
     var limpio = texto.replace(/\s+/g, ' ').trim();
     /* El dictado llega sin puntos: se separa en ideas por los conectores que marcan el antes, el ahora y el después. */
     if (limpio.length > 80 && !/[.!?]/.test(limpio.slice(0, -1))) {
-      limpio = limpio.replace(/\s+((?:pero |y )?(?:antes|anteriormente|ahora|por primera vez|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob))/gi, '. $1');
+      limpio = limpio.replace(/\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con))/gi, '. $1');
     }
-    var plain = sinTildes(limpio);
-    var frases = (limpio.match(/[^.!?]+[.!?]*/g) || [limpio]).map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 3; });
+    var plain = numerosADigitos(sinTildes(limpio));
+    var frases =(limpio.match(/[^.!?]+[.!?]*/g) || [limpio]).map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 3; });
     var conPalabra = function (re) { return frases.filter(function (s) { return re.test(sinTildes(s)); }); };
     var r = { estado: {}, justificacion: {}, alertas: [], preguntas: [], hechoObservable: true }, m;
     var pon = function (k, v, est) { r[k] = v || null; r.estado[k] = v ? est : 'falta'; };
@@ -557,9 +591,14 @@ a.btn { text-decoration: none; }
     var actores = [], vistos = {};
     (limpio.match(RE_ACTOR) || []).forEach(function (a) { var k = sinTildes(a.trim()); if (!vistos[k]) { vistos[k] = 1; actores.push(a.trim()); } });
     pon('quien', actores.slice(0, 3).join(', '), 'inferido');
-    var niv = puntuar(plain, REGLAS_NIVEL); pon('nivel', niv.valor, 'inferido');
+    /* El nivel sale primero de quién actuó; si no hay actor, del resto del relato. */
+    var niv = puntuar(sinTildes(actores.join(' ')), REGLAS_NIVEL);
+    if (!niv.valor) niv = puntuar(plain, REGLAS_NIVEL);
+    pon('nivel', niv.valor, 'inferido');
 
-    pon('queCambio', pulir(conPalabra(reCambio).slice(0, 2).map(sinArranque).join(' ')), 'narrativa');
+    var cambios = conPalabra(reCambio);
+    if (cambios.length > 1) cambios = cambios.filter(function (s) { return s !== frases[0]; });
+    pon('queCambio', pulir(cambios.slice(0, 2).map(sinArranque).join(' ')), 'narrativa');
 
     var dim = puntuar(plain, REGLAS_DIM); pon('dimension', dim.valor, 'inferido');
     if (dim.valor) r.justificacion.dimension = 'el relato menciona «' + dim.palabras.slice(0, 3).join('», «') + '».';
@@ -580,13 +619,15 @@ a.btn { text-decoration: none; }
     var ev = conPalabra(/\b(acta|foto|fotografia|video|documento|mensaje|testimonio|informe|listado|lista de asistencia|captura|audio|oficio|resolucion|acuerdo firmado)\b/);
     pon('evidencia', pulir(ev.slice(-1).map(sinArranque).join(' ')), 'narrativa');
 
-    var alta = /\b(lo vi|estuve|presencie|asisti|participe|estabamos|tengo (el|la|una|un) (acta|foto|documento|video|informe|listado)|hay (acta|documento))/.test(plain);
+    var alta = /\b(lo vi|estuve|presencie|asisti|participe|estabamos|tengo (el|la|una|un) (acta|foto|documento|video|informe|listado)|hay (acta|documento))/.test(plain) || (ev.length > 0 && /\b(acta|foto|fotografia|video|documento|informe|listado|resolucion|oficio)\b/.test(sinTildes(ev.join(' '))));
     var baja = /\b(me contaron|dicen que|escuche que|me dijeron|rumor|al parecer|supuestamente|segun me)/.test(plain);
     var cer = alta && baja ? 'Media' : alta ? 'Alta' : baja ? 'Baja' : '';
     pon('certeza', cer, 'inferido');
     if (cer) r.justificacion.certeza = alta && baja ? 'parte lo viste y parte te lo contaron.' : alta ? 'lo presenciaste o tienes un documento.' : 'te lo contaron y no hay respaldo.';
 
-    pon('profundizar', /\b(historia de cambio|vale la pena entrevistar|testimonio de)\b/.test(plain) ? 'Sí' : '', 'inferido');
+    /* Se sugiere profundizar cuando hay un avance con aporte del proyecto, o cuando el relato lo pide. */
+    var prof = /\b(historia de cambio|vale la pena entrevistar|testimonio de)\b/.test(plain) || (dir === 'Avance' && (con === 'Directa' || con === 'Parcial'));
+    pon('profundizar', prof ? 'Sí' : (dir && con === 'Ninguna (solo contexto)' ? 'No' : ''), 'inferido');
 
     var cant = '', uni = '';
     if (/\b(sin dato|no se cuant|no tengo el dato|no sabemos cuant)/.test(plain)) cant = 'sin dato';
@@ -596,7 +637,7 @@ a.btn { text-decoration: none; }
       uni = mapa[m[2]] || m[2].charAt(0).toUpperCase() + m[2].slice(1);
     }
     pon('cantidad', cant, 'narrativa'); pon('unidad', uni, 'narrativa');
-    m = /seg[uú]n (?:el |la |los |las )?([^.,;]{3,60})/i.exec(limpio);
+    m = /(?:seg[uú]n|de acuerdo con|con datos de|datos del?) (?:el |la |los |las )?([^.,;]{3,60})/i.exec(limpio);
     pon('fuente', m && !/^me /i.test(m[1]) ? m[1].trim() : '', 'inferido');
 
     var opinion = /\b(creo que|me parece|opino|pienso que|deberia|deberian|ojala|seria bueno)\b/.test(plain);
@@ -1071,11 +1112,14 @@ a.btn { text-decoration: none; }
   }
 
   /* ---------- Narrativa: pistas, conteo y borrador ---------- */
-  var draftTimer = null;
+  var draftTimer = null, vivoTimer = null;
   function updateNarr() {
     var t = $('#narr').value, w = t.trim() ? t.trim().split(/\s+/).length : 0;
     PISTAS.forEach(function (p) { p.el.classList.toggle('on', p.re.test(t)); });
     $('#narr-count').textContent = w ? '· ' + w + ' palabra' + (w === 1 ? '' : 's') : '';
+    /* Llenado en vivo: con las reglas locales, la ficha se actualiza sola mientras se escribe o se dicta. */
+    clearTimeout(vivoTimer);
+    if (sampleApi === reglasLocales && t.trim().length >= 25) vivoTimer = setTimeout(function () { if (!S.busy) estructurar(); }, 700);
     clearTimeout(draftTimer);
     draftTimer = setTimeout(function () {
       try { if (t.trim()) localStorage.setItem('senales-borrador', t); else localStorage.removeItem('senales-borrador'); } catch (e) {}
