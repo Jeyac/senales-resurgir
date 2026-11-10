@@ -237,6 +237,8 @@ a.btn { text-decoration: none; }
 .callout details { margin-top: 0; }
 .callout textarea { background: var(--surface); }
 
+.lote { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding: 8px 10px; background: var(--accent-soft); border-radius: 10px; }
+.lote select { width: auto; background: var(--surface); }
 .gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 16px; }
 .gate .card { max-width: 420px; width: 100%; display: grid; gap: 10px; }
 .gate input { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
@@ -324,6 +326,15 @@ a.btn { text-decoration: none; }
             <div><div class="step">Paso 1</div><h2>Cuenta la señal</h2></div>
           </div>
           <p class="hint">¿Qué ocurrió esta semana que te llamó la atención? ¿Dónde y con quién? ¿Qué hizo diferente alguien respecto a antes?</p>
+          <div class="lote">
+            <label for="cuantas" class="hint">¿Cuántas señales vas a registrar en esta entrada?</label>
+            <select id="cuantas">
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+              <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+            </select>
+            <span class="hint" id="lote-info"></span>
+            <button class="btn small danger" id="btn-lote-clear" type="button" hidden>Descartar las que ya están listas</button>
+          </div>
           <div class="narr-top">
             <label for="narr" class="hint">Narrativa <span id="narr-count"></span></label>
             <button class="btn small" id="mic-narr" type="button" hidden><svg class="i"><use href="#i-mic"/></svg><span>Dictar</span></button>
@@ -503,7 +514,7 @@ a.btn { text-decoration: none; }
     ['Nacional', ['nacional', 'ministerio', 'congreso', 'conred', 'gobierno central', 'presidencia']]
   ];
   var RE_ACTOR = /(alcaldesa|alcalde|concejo municipal|concejo|cocode|comude|codede|colred|comred|codred|conred|comisi[oó]n de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| aprob| present| que | del municipio|$)|comit[eé] de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| que |$)|municipalidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)?|ministerio de [a-záéíóúñ]+|secretar[ií]a de [a-záéíóúñ]+|junta directiva|asociaci[oó]n de [a-záéíóúñ]+|cooperativa [\wáéíóúñ]+|l[ií]deres comunitari[oa]s|lideresas?|gobernadora?|protecci[oó]n civil|bomberos|docentes)/gi;
-  var RE_IDEAS = /\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con|la certeza|la contribuci[oó]n|la dimensi[oó]n|la direcci[oó]n|el nivel|la evidencia|la fuente|la unidad|la cantidad|el actor|los actores|quien actu[oó]|quienes actuaron))/gi;
+  var RE_IDEAS = /\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con|la certeza|la contribuci[oó]n|la dimensi[oó]n|la direcci[oó]n|el nivel|la evidencia|la fuente|la unidad|la cantidad|el actor|los actores|quien actu[oó]|quienes actuaron|es un avance|es un retroceso|fue un avance|fue un retroceso|es neutr[oa]|es inciert[oa]))/gi;
   /* Más actores posibles: instituciones públicas, autoridades, organizaciones y grupos de la comunidad. */
   var RE_ACTOR2 = /(alcalde auxiliar|alcaldesa auxiliar|alcald[ií]a ind[ií]gena|autoridades (?:comunitarias|locales|ind[ií]genas|ancestrales|municipales)|corporaci[oó]n municipal|s[ií]ndico|concejal(?:es|a)?|oficina municipal de la mujer|direcci[oó]n municipal de [a-záéíóúñ]+|unidad de gesti[oó]n (?:ambiental|de riesgo)|consejo (?:comunitario|municipal|departamental) de desarrollo|gobernaci[oó]n(?: departamental)?|mancomunidad(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|centro de salud|puesto de salud|distrito de salud|hospital|polic[ií]a(?: nacional civil)?|ej[eé]rcito|cruz roja|iglesia(?: cat[oó]lica| evang[eé]lica)?|parroquia|p[aá]rroco|pastor(?:es)?|c[aá]ritas|comadronas?|promotor(?:es|as?) (?:de salud|comunitari[oa]s)|brigadas?(?: de [a-záéíóúñ]+)?|voluntari[oa]s|grupo de (?:mujeres|j[oó]venes|ahorro|productores)|red de [a-záéíóúñ]+|mesa (?:t[eé]cnica|de [a-záéíóúñ]+)|organizaci[oó]n de [a-záéíóúñ]+|empresa [\wáéíóúñ]+|universidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|escuela(?: [a-záéíóúñ]+)?|instituto(?: [a-záéíóúñ]+)?|maestr[oa]s|padres de familia|productor(?:es|as)|agricultor(?:es|as)|caficultor(?:es|as)|familias de la comunidad|l[ií]deres religiosos|comit[eé] de agua|comit[eé] escolar|comunidad educativa|(?:don|do[nñ]a|el se[nñ]or|la se[nñ]ora|el ingeniero|la ingeniera|el licenciado|la licenciada|el doctor|la doctora|el profesor|la profesora) [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|\b(?:COE|MAGA|MSPAS|MINEDUC|SESAN|SEGEPLAN|INSIVUMEH|MARN|MIDES|INAB|CONAP|PNC|DMM|DMP|OMM|UGAM|CRS|ONG)\b)/g;
   function puntuar(plain, reglas) {
@@ -574,11 +585,36 @@ a.btn { text-decoration: none; }
     if (s && !/[.!?]$/.test(s)) s += '.';
     return s;
   }
+  /* Nombre de la comunidad: «aldea El Ejemplo», «comunidad de San Juan», «caserío los pinos»… */
+  function lugarDe(limpio) {
+    var re = /\b(comunidad|aldea|caser[ií]o|cant[oó]n|barrio|colonia|paraje|finca|vereda|parcelamiento)\s+(?:de\s+|del\s+)?([^.,;]+)/gi, m;
+    var PARO = /^(donde|que|se|hubo|hay|y|e|o|con|para|en|por|a|al|un|una|su|sus|lo|le|ya|no|si|es|fue|son|era|tiene|tienen|pero|cuando|porque|como|esta|este|ayer|hoy|antes|ahora|despues|luego|tambien|ademas|participaron|asistieron|aprobaron|aprobo|revisaron|acordaron|decidieron|recibio|recibieron|organizo|organizaron|hicieron|hizo|realizaron|realizo|el|la|los|las)$/;
+    var UNE = /^(de|del|la|las|los|el|san|santa|santo|nueva|nuevo)$/;
+    while ((m = re.exec(limpio))) {
+      var pal = m[2].trim().split(/\s+/), nombre = [];
+      for (var i = 0; i < pal.length && nombre.length < 5; i++) {
+        var w = sinTildes(pal[i]);
+        if (UNE.test(w) && i + 1 < pal.length && !PARO.test(sinTildes(pal[i + 1])) && !/(aron|ieron|aban)$/.test(sinTildes(pal[i + 1]))) { nombre.push(pal[i]); continue; }
+        if (PARO.test(w) || /(aron|ieron|aban)$/.test(w)) break;
+        nombre.push(pal[i]);
+      }
+      while (nombre.length && UNE.test(sinTildes(nombre[nombre.length - 1])) && !/^(san|santa|santo)$/i.test(nombre[nombre.length - 1])) nombre.pop();
+      if (!nombre.length) continue;
+      var titulo = nombre.map(function (x) { return /^(de|del|la|las|los|el)$/i.test(x) ? x.toLowerCase() : x.charAt(0).toUpperCase() + x.slice(1); }).join(' ');
+      var tipo = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+      return tipo + ' ' + titulo;
+    }
+    return '';
+  }
   function estructurarLocal(texto) {
     /* Cada párrafo (el relato y cada aclaración) se separa en ideas por su cuenta. */
     var limpio = String(texto).split(/\n+/).map(function (seg) {
       seg = seg.replace(/\s+/g, ' ').trim().replace(/^aclaraci[oó]n:\s*/i, '');
-      if (seg.length > 40 && !/[.!?]/.test(seg.slice(0, -1))) seg = seg.replace(RE_IDEAS, '. $1');
+      if (seg.length > 40 && !/[.!?]/.test(seg.slice(0, -1))) {
+        seg = seg.replace(RE_IDEAS, '. $1');
+        /* no se corta una explicación por la mitad: «…porque ahora…», «…ya que antes…» */
+        seg = seg.replace(/\b(porque|ya que|debido a que|gracias a que|pues|que|y|pero)\. /gi, '$1 ');
+      }
       return seg && !/[.!?]$/.test(seg) ? seg + '.' : seg;
     }).filter(Boolean).join(' ');
     /* El dictado llega sin puntos: se separa en ideas por los conectores que marcan el antes, el ahora y el después. */
@@ -613,8 +649,9 @@ a.btn { text-decoration: none; }
     var niv = puntuar(sinTildes(actores.join(' ')), REGLAS_NIVEL);
     if (!niv.valor) niv = puntuar(plain, REGLAS_NIVEL);
     pon('nivel', niv.valor, 'inferido');
+    pon('comunidad', lugarDe(limpio), 'narrativa');
 
-    var cambios = conPalabra(reCambio);
+    var cambios = conPalabra(reCambio).filter(function (s) { return !/^(es|fue) (un )?(avance|retroceso|neutr|inciert)/i.test(s); });
     if (cambios.length > 1) cambios = cambios.filter(function (s) { return s !== frases[0]; });
     pon('queCambio', pulir(cambios.slice(0, 2).map(sinArranque).join(' ')), 'narrativa');
 
@@ -626,6 +663,14 @@ a.btn { text-decoration: none; }
     var dir = av && re ? 'Neutro/incierto' : av ? 'Avance' : re ? 'Retroceso' : '';
     pon('direccion', dir, 'inferido');
     if (dir) r.justificacion.direccion = av && re ? 'hay señales de avance y de retroceso en el relato.' : 'por los verbos que usa el relato.';
+
+    /* Por qué es esa dirección: primero lo que la persona explica («…porque…», «gracias a…»); si no lo dice,
+       se propone lo que cambió, para que lo confirme o lo corrija. */
+    var pq = /(?:avance|retroceso|neutr[oa]|inciert[oa])[^.]{0,25}?\b(?:porque|ya que|debido a que|debido a|gracias a que|gracias a|pues)\s+([^.]{5,220})/i.exec(limpio);
+    var pqTxt = pq ? pq[1] : '', pqEst = 'narrativa';
+    if (!pqTxt) { var fp = /\b(porque|ya que|debido a que|debido a|gracias a que|gracias a)\s+([^.]{5,220})/i.exec(limpio); if (fp) pqTxt = fp[1] + ' ' + fp[2]; }
+    if (!pqTxt && dir && r.queCambio) { pqTxt = r.queCambio; pqEst = 'inferido'; }
+    pon('porQue', pqTxt ? pulir(pqTxt) : '', pqEst);
 
     var con = '';
     if (/\b(sin (apoyo|intervencion|participacion) del proyecto|el proyecto no (particip|intervin|tuvo))/.test(plain)) con = 'Ninguna (solo contexto)';
@@ -770,6 +815,7 @@ a.btn { text-decoration: none; }
       'Guardada el': d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()),
       'Fecha del hecho': rec.fechaHecho, 'Registrada por': rec.registradoPor, 'Cargo': rec.registradoCargo, 'Componente': rec.registradoComponente,
       'Que paso': rec.quePaso, 'Quien actuo': rec.quien, 'Nivel': rec.nivel, 'Que cambio': rec.queCambio,
+      'Comunidad': rec.nivel === 'Comunitario' ? rec.comunidad : '', 'Por que la direccion': rec.porQue,
       'Dimension': rec.dimension, 'Direccion': rec.direccion, 'Contribucion del proyecto': rec.contribucion, 'Evidencia': rec.evidencia,
       'Certeza': rec.certeza, 'Para profundizar': rec.profundizar, 'Cantidad': rec.cantidad, 'Unidad': rec.unidad, 'Fuente del dato': rec.fuente,
       'Criterios cumplidos': String(ok), 'Narrativa original': rec.narrativa
@@ -793,9 +839,11 @@ a.btn { text-decoration: none; }
     { k: 'quePaso', n: '1', label: '¿Qué pasó?', type: 'textarea', g: 'quePaso', q: '¿Qué ocurrió exactamente, cuándo y dónde? ¿Qué se pudo ver, escuchar o leer?' },
     { k: 'quien', n: '2', label: '¿Quién actuó?', type: 'text', g: 'quien', q: '¿Quién tomó la decisión o la acción y de qué institución?' },
     { k: 'nivel', n: '2', label: 'Nivel', type: 'select', g: 'quien', q: '¿A qué nivel ocurrió: comunitario, municipal, departamental o nacional?' },
+    { k: 'comunidad', n: '2', label: '¿Qué comunidad?', type: 'text', g: 'quien', q: '¿En qué comunidad, aldea o caserío ocurrió?' },
     { k: 'queCambio', n: '3', label: '¿Qué cambió?', type: 'textarea', g: 'queCambio', q: '¿Qué era distinto antes y qué se hace ahora que antes no se hacía?' },
     { k: 'dimension', n: '4', label: 'Dimensión', type: 'select', g: 'clasif', q: '¿Qué parte del sistema cambió? ¿Cuál de las seis dimensiones lo explica mejor?' },
     { k: 'direccion', n: '5', label: 'Dirección', type: 'select', g: 'clasif', q: '¿Es un avance, un retroceso o aún no está claro?' },
+    { k: 'porQue', n: '5', label: '¿Por qué es un avance, un retroceso o incierto?', type: 'textarea', g: 'clasif', q: '¿Por qué lo consideras un avance, un retroceso o algo incierto?' },
     { k: 'contribucion', n: '6', label: 'Contribución del proyecto', type: 'select', g: 'clasif', q: '¿Qué hizo el proyecto para que esto ocurriera? ¿Fue directa, parcial o solo contexto?' },
     { k: 'evidencia', n: '7', label: 'Evidencia', type: 'text', g: 'evid', q: '¿Qué documento, foto, acta, mensaje o testimonio lo comprueba y dónde está?' },
     { k: 'certeza', n: '8', label: 'Certeza', type: 'select', g: 'cert', q: '¿Lo vimos directamente o nos lo contaron? ¿Qué tan seguros estamos?' },
@@ -948,6 +996,8 @@ a.btn { text-decoration: none; }
     if (u.ctl.value !== S.ficha[k]) u.ctl.value = S.ficha[k];
     if (u.pills) Array.prototype.forEach.call(u.pills.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === S.ficha[k])); });
     if (u.sync) u.sync(S.ficha[k]);
+    /* «¿Qué comunidad?» solo se pide cuando el nivel es comunitario. */
+    if ((k === 'nivel' || k === 'comunidad') && ui.comunidad) ui.comunidad.field.hidden = S.ficha.nivel !== 'Comunitario';
     u.chip.textContent = CHIP[e]; u.chip.className = 'chip ' + e;
     var j = S.just[k];
     if (j && S.ficha[k] && e !== 'manual') { u.why.textContent = 'Por qué: ' + j; u.why.hidden = false; }
@@ -1088,7 +1138,10 @@ a.btn { text-decoration: none; }
     var btn = $('#btn-save');
     var quienReg = !!quienRegistra();
     btn.disabled = !min || !quienReg || S.saving;
-    btn.textContent = ok === 8 ? 'Confirmar y guardar' : 'Guardar con ' + (8 - ok) + ' pendiente' + (8 - ok === 1 ? '' : 's');
+    var total = cuantas();
+    if (total > 1 && lote.length + 1 < total) btn.textContent = 'Lista: pasar a la señal ' + (lote.length + 2) + ' de ' + total;
+    else if (total > 1) btn.textContent = 'Guardar las ' + total + ' señales';
+    else btn.textContent = ok === 8 ? 'Confirmar y guardar' : 'Guardar con ' + (8 - ok) + ' pendiente' + (8 - ok === 1 ? '' : 's');
     if (!min) setStatus('#save-status', 'Para guardar se necesitan al menos: qué pasó, dimensión y dirección.');
     else if (!quienReg) setStatus('#save-status', 'Elige quién registra la señal en «Registrada por» para poder guardar.', true);
     else if (!S.saving) setStatus('#save-status', '');
@@ -1100,6 +1153,8 @@ a.btn { text-decoration: none; }
     var out = [];
     FIELDS.forEach(function (f) {
       if (f.k === 'fechaHecho' || f.k === 'unidad' || f.k === 'fuente') return;
+      if (f.k === 'comunidad' && S.ficha.nivel !== 'Comunitario') return;
+      if (f.k === 'porQue' && !S.ficha.direccion) return;
       var e = S.estado[f.k];
       if (e === 'falta' || e === 'inferido') {
         var a = S.preguntas.filter(function (p) { return p && p.campo === f.k && p.pregunta; })[0];
@@ -1154,6 +1209,14 @@ a.btn { text-decoration: none; }
   }
 
   /* ---------- Narrativa: pistas, conteo y borrador ---------- */
+  var lote = [];
+  function cuantas() { var el = $('#cuantas'); return Math.max(1, Math.min(10, (el && +el.value) || 1)); }
+  function pintarLote() {
+    var total = cuantas();
+    $('#lote-info').textContent = total > 1 ? 'Estás en la señal ' + (lote.length + 1) + ' de ' + total + (lote.length ? ' · ' + lote.length + ' lista' + (lote.length === 1 ? '' : 's') + ', se enviarán todas al final' : '') : '';
+    $('#btn-lote-clear').hidden = !lote.length;
+    renderReview();
+  }
   var draftTimer = null, vivoTimer = null;
   /* Lo que se responde en «lo que falta» también llena la ficha en vivo. */
   function vivoResp() {
@@ -1361,11 +1424,22 @@ a.btn { text-decoration: none; }
     if (S.saving) return;
     var rec = registroActual();
     if (!(rec.quePaso && rec.dimension && rec.direccion) || !rec.registradoPor) return;
-    S.saving = true; renderReview(); setStatus('#save-status', 'Guardando…');
+    /* Varias señales en una entrada: cada una se deja lista y, al completar la última, se envían todas juntas. */
+    var total = cuantas();
+    if (lote.length + 1 < total) {
+      lote.push(rec);
+      flash('Señal ' + lote.length + ' de ' + total + ' lista. Cuenta la siguiente.');
+      limpiar(true); pintarLote();
+      try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+      return;
+    }
+    S.saving = true; renderReview(); setStatus('#save-status', total > 1 ? 'Guardando ' + total + ' señales…' : 'Guardando…');
     try {
+      while (lote.length) { await enviarAFlujo(lote[0]); var hecho = lote.shift(); hecho.id = 'local-' + hecho.createdAt; localRecords.unshift(hecho); }
       await enviarAFlujo(rec);
-      rec.id = 'local-' + Date.now(); localRecords.unshift(rec); renderRecords();
-      flash('Señal enviada al registro de Resurgir en SharePoint.');
+      rec.id = 'local-' + rec.createdAt; localRecords.unshift(rec); renderRecords();
+      flash(total > 1 ? 'Se enviaron las ' + total + ' señales al registro de Resurgir en SharePoint.' : 'Señal enviada al registro de Resurgir en SharePoint.');
+      $('#cuantas').value = '1'; pintarLote();
       limpiar(true);
       try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     } catch (e) {
@@ -1373,6 +1447,8 @@ a.btn { text-decoration: none; }
       if (c === 'invalid_argument') msg = 'No tienes permiso para guardar en el registro compartido. Se necesita el rol de Colaborador o superior.';
       else if (c === 'quota_exceeded') msg = 'El registro compartido está lleno. Avisa a quien administra la página.';
       else if (c === 'revoked') msg = 'Tu acceso al registro cambió. Recarga la página.';
+      /* Si falló a mitad del envío, quedan pendientes solo las que no se enviaron. */
+      $('#cuantas').value = String(Math.min(10, lote.length + 1)); pintarLote(); renderRecords();
       setStatus('#save-status', msg, true);
     } finally { S.saving = false; renderReview(); }
   }
@@ -1440,7 +1516,7 @@ a.btn { text-decoration: none; }
       var open = false;
       var what = h('p', { class: 'what', text: r.quePaso || '' });
       var det = h('dl', { class: 'det', hidden: true });
-      var rows = [['Fecha del hecho', fmtISO(r.fechaHecho)], ['¿Quién actuó?', [r.quien, r.nivel].filter(Boolean).join(' · ')], ['¿Qué cambió?', r.queCambio], ['Contribución', r.contribucion],
+      var rows = [['Fecha del hecho', fmtISO(r.fechaHecho)], ['¿Quién actuó?', [r.quien, r.nivel, r.nivel === 'Comunitario' ? r.comunidad : ''].filter(Boolean).join(' · ')], ['¿Qué cambió?', r.queCambio], ['Por qué esa dirección', r.porQue], ['Contribución', r.contribucion],
         ['Evidencia', r.evidencia], ['Certeza', r.certeza], ['Para profundizar', r.profundizar], ['Dato cuantitativo', [r.cantidad, r.unidad, r.fuente ? '(' + r.fuente + ')' : ''].filter(Boolean).join(' ')], ['Narrativa original', r.narrativa]];
       rows.forEach(function (x) { if (x[1]) { det.append(h('dt', { text: x[0] }), h('dd', { text: x[1] })); } });
       var arch = Array.isArray(r.archivos) ? r.archivos.filter(function (a) { return a && blobUrl(a.id); }) : [];
@@ -1477,12 +1553,12 @@ a.btn { text-decoration: none; }
   function csvCell(v) { v = v == null ? '' : String(v); return /[",\r\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   async function descargar() {
     var list = allRecords(); if (!list.length) return;
-    var head = ['Fecha del hecho', 'Guardada el', 'Registrada por', 'Cargo', 'Componente', '¿Qué pasó?', '¿Quién actuó?', 'Nivel', '¿Qué cambió?', 'Dimensión', 'Dirección', 'Contribución del proyecto', 'Evidencia', 'Archivos de evidencia', 'Certeza', 'Para profundizar', 'Cantidad', 'Unidad', 'Fuente del dato', 'Criterios cumplidos (de 8)', 'Narrativa original'];
+    var head = ['Fecha del hecho', 'Guardada el', 'Registrada por', 'Cargo', 'Componente', '¿Qué pasó?', '¿Quién actuó?', 'Nivel', 'Comunidad', '¿Qué cambió?', 'Dimensión', 'Dirección', 'Por qué la dirección', 'Contribución del proyecto', 'Evidencia', 'Archivos de evidencia', 'Certeza', 'Para profundizar', 'Cantidad', 'Unidad', 'Fuente del dato', 'Criterios cumplidos (de 8)', 'Narrativa original'];
     var lines = [head.map(csvCell).join(',')];
     list.slice().reverse().forEach(function (r) {
       var ok = criterios(r, r.hechoObservable).filter(function (c) { return c.ok; }).length;
       var links = (Array.isArray(r.archivos) ? r.archivos : []).map(function (a) { var u = a && blobUrl(a.id); return u ? location.origin + u : ''; }).filter(Boolean).join(' ');
-      lines.push([r.fechaHecho, new Date(r.createdAt).toISOString().slice(0, 10), r.registradoPor, r.registradoCargo, r.registradoComponente, r.quePaso, r.quien, r.nivel, r.queCambio, r.dimension, r.direccion, r.contribucion, r.evidencia, links, r.certeza, r.profundizar, r.cantidad, r.unidad, r.fuente, ok, r.narrativa].map(csvCell).join(','));
+      lines.push([r.fechaHecho, new Date(r.createdAt).toISOString().slice(0, 10), r.registradoPor, r.registradoCargo, r.registradoComponente, r.quePaso, r.quien, r.nivel, r.nivel === 'Comunitario' ? r.comunidad : '', r.queCambio, r.dimension, r.direccion, r.porQue, r.contribucion, r.evidencia, links, r.certeza, r.profundizar, r.cantidad, r.unidad, r.fuente, ok, r.narrativa].map(csvCell).join(','));
     });
     var data = '﻿sep=,\r\n' + lines.join('\r\n');
     var nombreCsv = 'senales-de-cambio-' + new Date().toISOString().slice(0, 10) + '.csv';
@@ -1523,6 +1599,8 @@ a.btn { text-decoration: none; }
   updateNarr();
   $('#narr').addEventListener('input', updateNarr);
   $('#resp').addEventListener('input', vivoResp);
+  $('#cuantas').addEventListener('change', function () { if (cuantas() < lote.length + 1) $('#cuantas').value = String(lote.length + 1); pintarLote(); });
+  $('#btn-lote-clear').addEventListener('click', function () { lote = []; pintarLote(); flash('Se descartaron las señales que estaban listas.'); });
   $('#por-nombre').addEventListener('input', renderReview);
   $('#por').addEventListener('change', function () { pintarQuien(); renderReview(); if ($('#por').value === '__otra') $('#por-nombre').focus(); try { localStorage.setItem('senales-por', $('#por').value.trim()); } catch (e) {} });
   $('#gate-form').addEventListener('submit', function (e) { e.preventDefault(); probarClave($('#gate-key').value); });
