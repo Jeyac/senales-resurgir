@@ -369,7 +369,7 @@ a.btn { text-decoration: none; }
               <p class="status" id="manual-status" role="status" aria-live="polite"></p>
             </details>
           </div>
-          <p class="note">Al guardar, la ficha se envía al Excel de registros de Resurgir en SharePoint.</p>
+          <p class="note" id="nota-envio">Al guardar, la ficha se envía al Excel de registros de Resurgir en SharePoint.</p>
         </div>
 
         <div class="card" id="card-2">
@@ -465,7 +465,163 @@ a.btn { text-decoration: none; }
 
   /* ---------- Conexión con el flujo de Power Automate que escribe en el Excel de SharePoint ---------- */
   var FLOW_URL = 'https://defaultb80c308cd08d4b07915c11a92d9cc6.bd.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/31/workflows/3f468a09eb0c48d79a6470cc830ddc78/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=IfrgWQ9jz10u7rv7k9Jlm-gDfDrvhQpqgG2m85r1G4I';
-  var KEY_HASH = 'd8ef1721bbab789b380e0aa64bfbca3d8c07094b1faa7389a5abc2a7894c3089';
+  /* Flujo del asistente: recibe la narrativa, llama al modelo con la clave de API guardada DENTRO del flujo y devuelve la ficha.
+     La clave de API nunca está en esta página. Mientras esta dirección esté vacía, la ficha se llena a mano. */
+  var AI_FLOW_URL = '';
+  var asistenteFlujo = {
+    json: async function (prompt, opts) {
+      var r;
+      try {
+        r = await fetch(AI_FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: CLAVE, messages: [{ role: 'user', content: prompt }] }), signal: opts && opts.signal });
+      } catch (e) { throw { code: e && e.name === 'AbortError' ? 'cancelled' : 'upstream_error' }; }
+      if (r.status === 429) throw { code: 'rate_limited' };
+      if (r.status !== 200) throw { code: 'upstream_error' };
+      var data = await r.json().catch(function () { return null; });
+      var txt = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      txt = String(txt || ''); var i = txt.indexOf('{'), j = txt.lastIndexOf('}');
+      if (i < 0 || j <= i) throw { code: 'invalid_json' };
+      try { return JSON.parse(txt.slice(i, j + 1)); } catch (e) { throw { code: 'invalid_json' }; }
+    }
+  };
+  /* ---------- Llenado automático SIN asistente: reglas de palabras clave que corren en el propio dispositivo ----------
+     Devuelve la misma forma de respuesta que daba el asistente, así el resto de la lógica no cambia. */
+  function sinTildes(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function iso(d) { var p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+  var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  var REGLAS_DIM = [
+    ['Políticas', ['plan municipal', 'plan de', 'politica', 'ordenanza', 'norma', 'reglamento', 'acuerdo municipal', 'ley', 'decreto', 'aprobaron', 'aprobo', 'aprobacion']],
+    ['Prácticas/metodologías', ['protocolo', 'metodologia', 'herramienta', 'procedimiento', 'simulacro', 'capacitacion', 'alerta temprana', 'guia', 'manual', 'practica', 'ruta de evacuacion']],
+    ['Flujos de recursos', ['presupuesto', 'fondos', 'recursos', 'financi', 'asignaron', 'asigno', 'partida', 'inversion', 'donacion', 'quetzales', 'dinero']],
+    ['Relaciones y conexiones', ['coordinacion', 'coordinaron', 'mesa de', 'alianza', 'convenio', 'reunion conjunta', 'red de', 'articul', 'colabor', 'se reunieron']],
+    ['Dinámicas de poder', ['participacion', 'participaron', 'mujeres', 'jovenes', 'toma de decisiones', 'decidieron', 'voz y voto', 'inclusion', 'liderazgo', 'representacion', 'eligieron']],
+    ['Modelos mentales', ['piensan', 'creen', 'percepcion', 'conciencia', 'actitud', 'reconocen', 'reconocio', 'valoran', 'mentalidad', 'se habla', 'cultura de', 'ya no ven']]
+  ];
+  var REGLAS_NIVEL = [
+    ['Comunitario', ['comunidad', 'comunitari', 'aldea', 'caserio', 'cocode', 'colred', 'canton', 'barrio', 'vecinos']],
+    ['Municipal', ['municip', 'alcald', 'concejo', 'comude', 'comred']],
+    ['Departamental', ['departament', 'gobernacion', 'gobernador', 'codede', 'codred']],
+    ['Nacional', ['nacional', 'ministerio', 'congreso', 'conred', 'gobierno central', 'presidencia']]
+  ];
+  var RE_ACTOR = /(alcaldesa|alcalde|concejo municipal|concejo|cocode|comude|codede|colred|comred|codred|conred|comisi[oó]n de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| aprob| present| que | del municipio|$)|comit[eé] de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| que |$)|municipalidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)?|ministerio de [a-záéíóúñ]+|secretar[ií]a de [a-záéíóúñ]+|junta directiva|asociaci[oó]n de [a-záéíóúñ]+|cooperativa [\wáéíóúñ]+|l[ií]deres comunitari[oa]s|lideresas?|gobernadora?|protecci[oó]n civil|bomberos|docentes)/gi;
+  function puntuar(plain, reglas) {
+    var mejor = null, max = 0, usadas = [];
+    reglas.forEach(function (r) {
+      var hits = r[1].filter(function (k) { return plain.indexOf(k) >= 0; });
+      if (hits.length > max) { max = hits.length; mejor = r[0]; usadas = hits; }
+    });
+    return { valor: mejor, palabras: usadas };
+  }
+  function fechaDe(plain) {
+    var hoy = new Date(), m;
+    if (/\b(anteayer|antier)\b/.test(plain)) { hoy.setDate(hoy.getDate() - 2); return iso(hoy); }
+    if (/\bayer\b/.test(plain)) { hoy.setDate(hoy.getDate() - 1); return iso(hoy); }
+    if ((m = /\b(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?: (?:de|del) (\d{4}))?/.exec(plain))) {
+      var d = new Date(m[3] ? +m[3] : hoy.getFullYear(), MESES.indexOf(m[2]), +m[1]); return isNaN(d) ? '' : iso(d);
+    }
+    if ((m = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/.exec(plain))) {
+      var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : hoy.getFullYear(), d2 = new Date(y, +m[2] - 1, +m[1]); return isNaN(d2) ? '' : iso(d2);
+    }
+    if (/\bhoy\b(?! en dia)/.test(plain)) return iso(hoy);
+    return '';
+  }
+  function estructurarLocal(texto) {
+    var limpio = texto.replace(/\s+/g, ' ').trim(), plain = sinTildes(limpio);
+    var frases = (limpio.match(/[^.!?]+[.!?]*/g) || [limpio]).map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 3; });
+    var conPalabra = function (re) { return frases.filter(function (s) { return re.test(sinTildes(s)); }); };
+    var r = { estado: {}, justificacion: {}, alertas: [], preguntas: [], hechoObservable: true }, m;
+    var pon = function (k, v, est) { r[k] = v || null; r.estado[k] = v ? est : 'falta'; };
+
+    var reCambio = /\b(antes|ahora|por primera vez|ya no|nunca|anteriormente|hasta ahora|desde entonces|a partir de)\b/;
+    pon('quePaso', frases.slice(0, 2).filter(function (s, i) { return i === 0 || !reCambio.test(sinTildes(s)); }).join(' '), 'narrativa');
+    pon('fechaHecho', fechaDe(plain), 'inferido');
+
+    var actores = [], vistos = {};
+    (limpio.match(RE_ACTOR) || []).forEach(function (a) { var k = sinTildes(a.trim()); if (!vistos[k]) { vistos[k] = 1; actores.push(a.trim()); } });
+    pon('quien', actores.slice(0, 3).join(', '), 'inferido');
+    var niv = puntuar(plain, REGLAS_NIVEL); pon('nivel', niv.valor, 'inferido');
+
+    pon('queCambio', conPalabra(/\b(antes|ahora|por primera vez|ya no|nunca|anteriormente|hasta ahora|desde entonces|a partir de)\b/).slice(0, 2).join(' '), 'narrativa');
+
+    var dim = puntuar(plain, REGLAS_DIM); pon('dimension', dim.valor, 'inferido');
+    if (dim.valor) r.justificacion.dimension = 'el relato menciona «' + dim.palabras.slice(0, 3).join('», «') + '».';
+
+    var av = (plain.match(/\b(aprob|logr|mejor|por primera vez|se creo|crearon|implement|aument|fortalec|asign|inaugur|adopt|firmaron|firmo|instal|incluy)/g) || []).length;
+    var re = (plain.match(/\b(cancel|suspend|recort|rechaz|elimin|disminuy|dejo de|dejaron de|retir|empeor|bloque|no se aprob|no aprob)/g) || []).length;
+    var dir = av && re ? 'Neutro/incierto' : av ? 'Avance' : re ? 'Retroceso' : '';
+    pon('direccion', dir, 'inferido');
+    if (dir) r.justificacion.direccion = av && re ? 'hay señales de avance y de retroceso en el relato.' : 'por los verbos que usa el relato.';
+
+    var con = '';
+    if (/\b(sin (apoyo|intervencion|participacion) del proyecto|el proyecto no (particip|intervin|tuvo))/.test(plain)) con = 'Ninguna (solo contexto)';
+    else if (/proyecto[^.]{0,60}\b(organiz|financi|realiz|implement|capacit|redact|elabor|entreg|constru)/.test(plain)) con = 'Directa';
+    else if (/proyecto[^.]{0,60}\b(ayud|apoy|acompan|contribuy|facilit|particip|promov|impuls|asesor)/.test(plain)) con = 'Parcial';
+    pon('contribucion', con, 'inferido');
+    if (con) r.justificacion.contribucion = 'por lo que el relato dice que hizo el proyecto.';
+
+    var ev = conPalabra(/\b(acta|foto|fotografia|video|documento|mensaje|testimonio|informe|listado|lista de asistencia|captura|audio|oficio|resolucion|acuerdo firmado)\b/);
+    pon('evidencia', ev.slice(-1).join(' '), 'narrativa');
+
+    var alta = /\b(lo vi|estuve|presencie|asisti|participe|estabamos|tengo (el|la|una|un) (acta|foto|documento|video|informe|listado)|hay (acta|documento))/.test(plain);
+    var baja = /\b(me contaron|dicen que|escuche que|me dijeron|rumor|al parecer|supuestamente|segun me)/.test(plain);
+    var cer = alta && baja ? 'Media' : alta ? 'Alta' : baja ? 'Baja' : '';
+    pon('certeza', cer, 'inferido');
+    if (cer) r.justificacion.certeza = alta && baja ? 'parte lo viste y parte te lo contaron.' : alta ? 'lo presenciaste o tienes un documento.' : 'te lo contaron y no hay respaldo.';
+
+    pon('profundizar', /\b(historia de cambio|vale la pena entrevistar|testimonio de)\b/.test(plain) ? 'Sí' : '', 'inferido');
+
+    var cant = '', uni = '';
+    if (/\b(sin dato|no se cuant|no tengo el dato|no sabemos cuant)/.test(plain)) cant = 'sin dato';
+    else if ((m = /\b(\d[\d.,]*)\s+(personas|familias|hogares|comunidades|municipios|instituciones|organizaciones|comites|comisiones|escuelas|documentos|planes|mujeres|hombres|jovenes|lideres|participantes|docentes|estudiantes)\b/.exec(plain))) {
+      cant = m[1].replace(/[.,]$/, '');
+      var mapa = { comites: 'Comités o comisiones', comisiones: 'Comités o comisiones', documentos: 'Documentos o planes', planes: 'Documentos o planes' };
+      uni = mapa[m[2]] || m[2].charAt(0).toUpperCase() + m[2].slice(1);
+    }
+    pon('cantidad', cant, 'narrativa'); pon('unidad', uni, 'narrativa');
+    m = /seg[uú]n (?:el |la |los |las )?([^.,;]{3,60})/i.exec(limpio);
+    pon('fuente', m && !/^me /i.test(m[1]) ? m[1].trim() : '', 'inferido');
+
+    var opinion = /\b(creo que|me parece|opino|pienso que|deberia|deberian|ojala|seria bueno)\b/.test(plain);
+    if (opinion && !r.quien && !r.fechaHecho) r.hechoObservable = false;
+    if (!r.quien) r.alertas.push('No identifiqué quién actuó. Escríbelo en el campo 2.');
+    if (frases.length > 8) r.alertas.push('El relato es largo: revisa que hable de un solo hecho.');
+    return r;
+  }
+  var reglasLocales = { json: async function () { return estructurarLocal(document.querySelector('#narr').value); } };
+
+  /* Dictado propio del navegador (Chrome, Edge, Android, Safari), sin cuentas ni claves. */
+  function dictadoNavegador() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    var rec = null, hs = { state: [], partial: [], fin: [] };
+    var emit = function (k, e) { hs[k].forEach(function (f) { try { f(e); } catch (x) {} }); };
+    return {
+      start: function () {
+        return new Promise(function (res, rej) {
+          try {
+            rec = new SR(); rec.lang = 'es-419'; rec.continuous = true; rec.interimResults = true;
+            rec.onstart = function () { emit('state', { state: 'listening' }); res(); };
+            rec.onresult = function (ev) {
+              var prov = '';
+              for (var i = ev.resultIndex; i < ev.results.length; i++) {
+                var t = ev.results[i][0].transcript;
+                if (ev.results[i].isFinal) emit('fin', { text: ' ' + t.trim() }); else prov += t;
+              }
+              emit('partial', { text: prov });
+            };
+            rec.onerror = function (ev) {
+              var c = (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') ? 'not_granted' : (ev.error === 'no-speech' || ev.error === 'aborted') ? 'stopped' : 'upstream_error';
+              rej({ code: c });
+            };
+            rec.onend = function () { emit('partial', { text: '' }); emit('state', { state: 'idle', reason: 'stopped' }); };
+            emit('state', { state: 'starting' }); rec.start();
+          } catch (e) { rej({ code: 'upstream_error' }); }
+        });
+      },
+      stop: function () { try { if (rec) rec.stop(); } catch (e) {} return Promise.resolve(); },
+      onState: function (f) { hs.state.push(f); }, onPartial: function (f) { hs.partial.push(f); }, onFinal: function (f) { hs.fin.push(f); }
+    };
+  }
+  var KEY_HASH ='d8ef1721bbab789b380e0aa64bfbca3d8c07094b1faa7389a5abc2a7894c3089';
   var CLAVE = '';
   async function sha(t) {
     var b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
@@ -1238,7 +1394,10 @@ a.btn { text-decoration: none; }
   $('#btn-nofiltro').addEventListener('click', function () { F.q = ''; F.dim = ''; F.dir = ''; $('#buscar').value = ''; renderRecords(); });
 
   /* ---------- Capacidades ---------- */
-  use('sample').then(function (s) { sampleApi = s; if (!s) showNoClaude(); });
+  use('sample').then(function (s) {
+    sampleApi = s || (AI_FLOW_URL ? asistenteFlujo : reglasLocales);
+    if (!s && !AI_FLOW_URL) document.querySelector('#nota-envio').textContent = 'La ficha se propone con reglas de palabras clave en tu propio dispositivo, sin inteligencia artificial: revisa y corrige cada campo. Al guardar, la ficha se envía al Excel de registros de Resurgir en SharePoint.';
+  });
   $('#btn-copy').addEventListener('click', copiarPeticion);
   $('#btn-apply').addEventListener('click', aplicarManual);
   use('downloads').then(function (d) { dlApi = d; renderRecords(); });
@@ -1249,8 +1408,12 @@ a.btn { text-decoration: none; }
     renderQuestions();
   });
   use('dictation').then(function (d) {
-    dict = d; if (!d) return;
-    d.onState(function (e) { dictState = e.state; paintMic(); });
+    d = d || dictadoNavegador(); dict = d; if (!d) return;
+    d.onState(function (e) {
+      var antes = dictState; dictState = e.state; paintMic();
+      /* Al terminar de dictar la narrativa, la ficha se llena sola. */
+      if (e.state === 'idle' && antes !== 'idle' && dictTarget && dictTarget.id === 'narr' && $('#narr').value.trim().length >= 25) estructurar();
+    });
     d.onPartial(function (e) { if (dictTarget) $('#partial-' + dictTarget.id).textContent = e.text ? 'Escuchando: ' + e.text : ''; });
     d.onFinal(function (e) {
       var t = dictTarget; if (!t || !e.text) return;
