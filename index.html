@@ -592,32 +592,56 @@ a.btn { text-decoration: none; }
   function dictadoNavegador() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
-    var rec = null, hs = { state: [], partial: [], fin: [] };
+    var rec = null, activo = false, hs = { state: [], partial: [], fin: [] };
     var emit = function (k, e) { hs[k].forEach(function (f) { try { f(e); } catch (x) {} }); };
     return {
+      /* Escucha sin cortes: si el navegador se detiene por una pausa o un silencio, vuelve a escuchar solo
+         hasta que la persona pulse «Detener dictado». Así se captura todo lo que se dice. */
       start: function () {
         return new Promise(function (res, rej) {
-          try {
-            rec = new SR(); rec.lang = 'es-419'; rec.continuous = true; rec.interimResults = true;
-            rec.onstart = function () { emit('state', { state: 'listening' }); res(); };
+          var iniciado = false, movil = /Android|iPhone|iPad/i.test(navigator.userAgent);
+          var avisar = function (msg) { var el = document.querySelector('#est-status'); if (el) { el.textContent = msg; el.parentNode.className = 'status err'; } };
+          var crear = function () {
+            rec = new SR();
+            rec.lang = /^es/i.test(navigator.language || '') ? navigator.language : 'es-GT';
+            rec.continuous = !movil; rec.interimResults = true; rec.maxAlternatives = 1;
+            rec.onstart = function () { if (!iniciado) { iniciado = true; emit('state', { state: 'listening' }); res(); } };
             rec.onresult = function (ev) {
               var prov = '';
               for (var i = ev.resultIndex; i < ev.results.length; i++) {
                 var t = ev.results[i][0].transcript;
-                if (ev.results[i].isFinal) emit('fin', { text: ' ' + t.trim() }); else prov += t;
+                if (ev.results[i].isFinal) { if (t.trim()) emit('fin', { text: ' ' + t.trim() }); } else prov += t;
               }
               emit('partial', { text: prov });
             };
             rec.onerror = function (ev) {
-              var c = (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') ? 'not_granted' : (ev.error === 'no-speech' || ev.error === 'aborted') ? 'stopped' : 'upstream_error';
-              rej({ code: c });
+              var e = ev.error;
+              if (e === 'no-speech' || e === 'aborted') return; /* silencio: se sigue escuchando */
+              activo = false;
+              if (e === 'not-allowed' || e === 'service-not-allowed') avisar('El navegador bloqueó el micrófono. Pulsa el candado junto a la dirección de la página, permite el micrófono y vuelve a pulsar «Dictar».');
+              else if (e === 'audio-capture') avisar('No encontré ningún micrófono en este dispositivo. Conecta uno o revisa que no lo esté usando otra aplicación.');
+              else if (e === 'network') avisar('El dictado necesita conexión a internet. Revisa tu conexión e intenta de nuevo.');
+              else if (e === 'language-not-supported') avisar('Este navegador no ofrece dictado en español. Usa el dictado del teclado.');
+              else avisar('El dictado se detuvo por un problema del navegador (' + e + '). Pulsa «Dictar» otra vez.');
+              if (!iniciado) rej({ code: 'stopped' });
             };
-            rec.onend = function () { emit('partial', { text: '' }); emit('state', { state: 'idle', reason: 'stopped' }); };
-            emit('state', { state: 'starting' }); rec.start();
-          } catch (e) { rej({ code: 'upstream_error' }); }
+            rec.onend = function () {
+              emit('partial', { text: '' });
+              if (activo) {
+                setTimeout(function () {
+                  if (!activo) { emit('state', { state: 'idle', reason: 'stopped' }); return; }
+                  try { crear(); rec.start(); } catch (x) { activo = false; emit('state', { state: 'idle', reason: 'stopped' }); }
+                }, 250);
+                return;
+              }
+              emit('state', { state: 'idle', reason: 'stopped' });
+            };
+          };
+          try { activo = true; emit('state', { state: 'starting' }); crear(); rec.start(); }
+          catch (e) { activo = false; emit('state', { state: 'idle', reason: 'upstream_error' }); rej({ code: 'upstream_error' }); }
         });
       },
-      stop: function () { try { if (rec) rec.stop(); } catch (e) {} return Promise.resolve(); },
+      stop: function () { activo = false; try { if (rec) rec.stop(); } catch (e) {} return Promise.resolve(); },
       onState: function (f) { hs.state.push(f); }, onPartial: function (f) { hs.partial.push(f); }, onFinal: function (f) { hs.fin.push(f); }
     };
   }
@@ -932,9 +956,11 @@ a.btn { text-decoration: none; }
     } else { al.hidden = true; al.textContent = ''; }
     var min = !!(S.ficha.quePaso && S.ficha.dimension && S.ficha.direccion);
     var btn = $('#btn-save');
-    btn.disabled = !min || S.saving;
+    var quienReg = !!quienRegistra();
+    btn.disabled = !min || !quienReg || S.saving;
     btn.textContent = ok === 8 ? 'Confirmar y guardar' : 'Guardar con ' + (8 - ok) + ' pendiente' + (8 - ok === 1 ? '' : 's');
     if (!min) setStatus('#save-status', 'Para guardar se necesitan al menos: qué pasó, dimensión y dirección.');
+    else if (!quienReg) setStatus('#save-status', 'Elige quién registra la señal en «Registrada por» para poder guardar.', true);
     else if (!S.saving) setStatus('#save-status', '');
   }
 
@@ -1196,7 +1222,7 @@ a.btn { text-decoration: none; }
   async function guardar() {
     if (S.saving) return;
     var rec = registroActual();
-    if (!(rec.quePaso && rec.dimension && rec.direccion)) return;
+    if (!(rec.quePaso && rec.dimension && rec.direccion) || !rec.registradoPor) return;
     S.saving = true; renderReview(); setStatus('#save-status', 'Guardando…');
     try {
       await enviarAFlujo(rec);
@@ -1358,7 +1384,8 @@ a.btn { text-decoration: none; }
   } catch (e) {}
   updateNarr();
   $('#narr').addEventListener('input', updateNarr);
-  $('#por').addEventListener('change', function () { pintarQuien(); if ($('#por').value === '__otra') $('#por-nombre').focus(); try { localStorage.setItem('senales-por', $('#por').value.trim()); } catch (e) {} });
+  $('#por-nombre').addEventListener('input', renderReview);
+  $('#por').addEventListener('change', function () { pintarQuien(); renderReview(); if ($('#por').value === '__otra') $('#por-nombre').focus(); try { localStorage.setItem('senales-por', $('#por').value.trim()); } catch (e) {} });
   $('#gate-form').addEventListener('submit', function (e) { e.preventDefault(); probarClave($('#gate-key').value); });
   try { var k0 = sessionStorage.getItem('senales-clave'); if (k0) probarClave(k0, true); } catch (e) {}
   $('#tab-nueva').addEventListener('click', function () { showTab('nueva'); });
