@@ -503,6 +503,9 @@ a.btn { text-decoration: none; }
     ['Nacional', ['nacional', 'ministerio', 'congreso', 'conred', 'gobierno central', 'presidencia']]
   ];
   var RE_ACTOR = /(alcaldesa|alcalde|concejo municipal|concejo|cocode|comude|codede|colred|comred|codred|conred|comisi[oó]n de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| aprob| present| que | del municipio|$)|comit[eé] de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| que |$)|municipalidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)?|ministerio de [a-záéíóúñ]+|secretar[ií]a de [a-záéíóúñ]+|junta directiva|asociaci[oó]n de [a-záéíóúñ]+|cooperativa [\wáéíóúñ]+|l[ií]deres comunitari[oa]s|lideresas?|gobernadora?|protecci[oó]n civil|bomberos|docentes)/gi;
+  var RE_IDEAS = /\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con|la certeza|la contribuci[oó]n|la dimensi[oó]n|la direcci[oó]n|el nivel|la evidencia|la fuente|la unidad|la cantidad|el actor|los actores|quien actu[oó]|quienes actuaron))/gi;
+  /* Más actores posibles: instituciones públicas, autoridades, organizaciones y grupos de la comunidad. */
+  var RE_ACTOR2 = /(alcalde auxiliar|alcaldesa auxiliar|alcald[ií]a ind[ií]gena|autoridades (?:comunitarias|locales|ind[ií]genas|ancestrales|municipales)|corporaci[oó]n municipal|s[ií]ndico|concejal(?:es|a)?|oficina municipal de la mujer|direcci[oó]n municipal de [a-záéíóúñ]+|unidad de gesti[oó]n (?:ambiental|de riesgo)|consejo (?:comunitario|municipal|departamental) de desarrollo|gobernaci[oó]n(?: departamental)?|mancomunidad(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|centro de salud|puesto de salud|distrito de salud|hospital|polic[ií]a(?: nacional civil)?|ej[eé]rcito|cruz roja|iglesia(?: cat[oó]lica| evang[eé]lica)?|parroquia|p[aá]rroco|pastor(?:es)?|c[aá]ritas|comadronas?|promotor(?:es|as?) (?:de salud|comunitari[oa]s)|brigadas?(?: de [a-záéíóúñ]+)?|voluntari[oa]s|grupo de (?:mujeres|j[oó]venes|ahorro|productores)|red de [a-záéíóúñ]+|mesa (?:t[eé]cnica|de [a-záéíóúñ]+)|organizaci[oó]n de [a-záéíóúñ]+|empresa [\wáéíóúñ]+|universidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|escuela(?: [a-záéíóúñ]+)?|instituto(?: [a-záéíóúñ]+)?|maestr[oa]s|padres de familia|productor(?:es|as)|agricultor(?:es|as)|caficultor(?:es|as)|familias de la comunidad|l[ií]deres religiosos|comit[eé] de agua|comit[eé] escolar|comunidad educativa|(?:don|do[nñ]a|el se[nñ]or|la se[nñ]ora|el ingeniero|la ingeniera|el licenciado|la licenciada|el doctor|la doctora|el profesor|la profesora) [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|\b(?:COE|MAGA|MSPAS|MINEDUC|SESAN|SEGEPLAN|INSIVUMEH|MARN|MIDES|INAB|CONAP|PNC|DMM|DMP|OMM|UGAM|CRS|ONG)\b)/g;
   function puntuar(plain, reglas) {
     var mejor = null, max = 0, usadas = [];
     reglas.forEach(function (r) {
@@ -572,7 +575,12 @@ a.btn { text-decoration: none; }
     return s;
   }
   function estructurarLocal(texto) {
-    var limpio = texto.replace(/\s+/g, ' ').trim();
+    /* Cada párrafo (el relato y cada aclaración) se separa en ideas por su cuenta. */
+    var limpio = String(texto).split(/\n+/).map(function (seg) {
+      seg = seg.replace(/\s+/g, ' ').trim().replace(/^aclaraci[oó]n:\s*/i, '');
+      if (seg.length > 40 && !/[.!?]/.test(seg.slice(0, -1))) seg = seg.replace(RE_IDEAS, '. $1');
+      return seg && !/[.!?]$/.test(seg) ? seg + '.' : seg;
+    }).filter(Boolean).join(' ');
     /* El dictado llega sin puntos: se separa en ideas por los conectores que marcan el antes, el ahora y el después. */
     if (limpio.length > 80 && !/[.!?]/.test(limpio.slice(0, -1))) {
       limpio = limpio.replace(/\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con))/gi, '. $1');
@@ -589,8 +597,18 @@ a.btn { text-decoration: none; }
     pon('fechaHecho', fechaDe(plain), 'inferido');
 
     var actores = [], vistos = {};
-    (limpio.match(RE_ACTOR) || []).forEach(function (a) { var k = sinTildes(a.trim()); if (!vistos[k]) { vistos[k] = 1; actores.push(a.trim()); } });
-    pon('quien', actores.slice(0, 3).join(', '), 'inferido');
+    /* Si la persona lo dice de forma directa («el actor fue…», «actuaron…»), eso va primero. */
+    var dicho = /(?:el actor (?:es|fue)|los actores (?:son|fueron)|quien actu[oó] (?:es|fue)|quienes actuaron (?:son|fueron)|actuaron|actu[oó])\s+([^.;]{3,90})/i.exec(limpio);
+    var encontrados = (dicho ? dicho[1].split(/\s*,\s*|\s+y\s+/) : []).concat(limpio.match(RE_ACTOR) || [], limpio.match(RE_ACTOR2) || []);
+    encontrados.forEach(function (a) {
+      a = a.trim().replace(/^(?:el|la|los|las)\s+/i, ''); var k = sinTildes(a);
+      if (a.length < 3) return;
+      /* no se repite un actor que ya está contenido en otro más completo */
+      if (Object.keys(vistos).some(function (v) { return v.indexOf(k) >= 0; })) return;
+      Object.keys(vistos).forEach(function (v) { if (k.indexOf(v) >= 0) { actores.splice(actores.indexOf(vistos[v]), 1); delete vistos[v]; } });
+      vistos[k] = a; actores.push(a);
+    });
+    pon('quien', actores.slice(0, 6).join(', '), dicho ? 'narrativa' : 'inferido');
     /* El nivel sale primero de quién actuó; si no hay actor, del resto del relato. */
     var niv = puntuar(sinTildes(actores.join(' ')), REGLAS_NIVEL);
     if (!niv.valor) niv = puntuar(plain, REGLAS_NIVEL);
@@ -640,13 +658,37 @@ a.btn { text-decoration: none; }
     m = /(?:seg[uú]n|de acuerdo con|con datos de|datos del?) (?:el |la |los |las )?([^.,;]{3,60})/i.exec(limpio);
     pon('fuente', m && !/^me /i.test(m[1]) ? m[1].trim() : '', 'inferido');
 
+    /* Datos dichos de forma directa («la certeza es alta», «contribución parcial», «nivel municipal»…):
+       mandan sobre lo deducido y quedan como dichos en la narrativa. */
+    var ultimo = function (re) { var g = new RegExp(re.source, 'g'), x, last = null; while ((x = g.exec(plain))) last = x; return last; };
+    if ((m = ultimo(/\bcerteza(?: es| fue| seria)?:? (alta|media|baja|directa|total|segura|indirecta|poca)\b/))) {
+      pon('certeza', { alta: 'Alta', directa: 'Alta', total: 'Alta', segura: 'Alta', media: 'Media', baja: 'Baja', indirecta: 'Baja', poca: 'Baja' }[m[1]], 'narrativa'); delete r.justificacion.certeza;
+    }
+    if ((m = ultimo(/\bcontribucion(?: del proyecto)?(?: es| fue| seria)?:? (directa|parcial|ninguna|nula|solo contexto|indirecta)\b/))) {
+      pon('contribucion', { directa: 'Directa', parcial: 'Parcial', indirecta: 'Parcial', ninguna: 'Ninguna (solo contexto)', nula: 'Ninguna (solo contexto)', 'solo contexto': 'Ninguna (solo contexto)' }[m[1]], 'narrativa'); delete r.justificacion.contribucion;
+    }
+    if ((m = ultimo(/\bnivel(?: es| fue)?:? (comunitario|municipal|departamental|nacional)\b/))) pon('nivel', m[1].charAt(0).toUpperCase() + m[1].slice(1), 'narrativa');
+    if ((m = ultimo(/\bdimension(?: es| seria| fue)?:? (?:de |la de |las |los )?(politicas?|practicas?|metodologias?|flujos? de recursos|recursos|relaciones|conexiones|dinamicas? de poder|poder|modelos? mentales)\b/))) {
+      var dd = m[1]; pon('dimension', /polit/.test(dd) ? 'Políticas' : /pract|metod/.test(dd) ? 'Prácticas/metodologías' : /recurs/.test(dd) ? 'Flujos de recursos' : /relac|conex/.test(dd) ? 'Relaciones y conexiones' : /poder/.test(dd) ? 'Dinámicas de poder' : 'Modelos mentales', 'narrativa'); delete r.justificacion.dimension;
+    }
+    if ((m = ultimo(/\b(?:direccion(?: es| fue)?:?|es un|fue un|se trata de un) (avance|retroceso|neutr[oa]|inciert[oa])\b/))) {
+      pon('direccion', m[1] === 'avance' ? 'Avance' : m[1] === 'retroceso' ? 'Retroceso' : 'Neutro/incierto', 'narrativa'); delete r.justificacion.direccion;
+    }
+    if ((m = ultimo(/\b(si|no) (?:vale la pena|hay que|conviene|es necesario|hace falta) profundizar\b/)) || (m = ultimo(/\bprofundizar(?: es)?:? (si|no)\b/))) pon('profundizar', m[1] === 'si' ? 'Sí' : 'No', 'narrativa');
+    if ((m = ultimo(/\bla cantidad (?:es|son|fue)(?: de)? (\d[\d.,]*)/))) pon('cantidad', m[1].replace(/[.,]$/, ''), 'narrativa');
+    var directo = function (re) { var g = new RegExp(re.source, 'gi'), x, last = null; while ((x = g.exec(limpio))) last = x; return last ? pulir(last[1]).replace(/\.$/, '') : ''; };
+    var dEv = directo(/la evidencia (?:es|son|est[aá] en|est[aá]n en)\s+([^.;]{3,140})/); if (dEv) pon('evidencia', dEv, 'narrativa');
+    var dFu = directo(/la fuente (?:del dato )?(?:es|son|fue)\s+([^.;]{3,90})/); if (dFu) pon('fuente', dFu, 'narrativa');
+    var dUn = directo(/la unidad (?:es|son)\s+([^.;]{2,40})/); if (dUn) pon('unidad', dUn, 'narrativa');
+
     var opinion = /\b(creo que|me parece|opino|pienso que|deberia|deberian|ojala|seria bueno)\b/.test(plain);
     if (opinion && !r.quien && !r.fechaHecho) r.hechoObservable = false;
     if (!r.quien) r.alertas.push('No identifiqué quién actuó. Escríbelo en el campo 2.');
     if (frases.length > 8) r.alertas.push('El relato es largo: revisa que hable de un solo hecho.');
     return r;
   }
-  var reglasLocales = { json: async function () { return estructurarLocal(document.querySelector('#narr').value); } };
+  /* Se lee el relato y también lo que se escribe o dicta en «Responde lo que falta». */
+  var reglasLocales = { json: async function () { return estructurarLocal(document.querySelector('#narr').value + '\n' + document.querySelector('#resp').value); } };
 
   /* Dictado propio del navegador (Chrome, Edge, Android, Safari), sin cuentas ni claves. */
   function dictadoNavegador() {
@@ -1113,6 +1155,11 @@ a.btn { text-decoration: none; }
 
   /* ---------- Narrativa: pistas, conteo y borrador ---------- */
   var draftTimer = null, vivoTimer = null;
+  /* Lo que se responde en «lo que falta» también llena la ficha en vivo. */
+  function vivoResp() {
+    clearTimeout(vivoTimer);
+    if (sampleApi === reglasLocales && $('#narr').value.trim().length >= 25) vivoTimer = setTimeout(function () { if (!S.busy) estructurar(); }, 700);
+  }
   function updateNarr() {
     var t = $('#narr').value, w = t.trim() ? t.trim().split(/\s+/).length : 0;
     PISTAS.forEach(function (p) { p.el.classList.toggle('on', p.re.test(t)); });
@@ -1298,7 +1345,7 @@ a.btn { text-decoration: none; }
   function registroActual() {
     var rec = {};
     KEYS.forEach(function (k) { rec[k] = S.ficha[k] || ''; });
-    rec.narrativa = $('#narr').value.trim();
+    rec.narrativa = $('#narr').value.trim() + ($('#resp').value.trim() ? '\n\nAclaración: ' + $('#resp').value.trim() : '');
     rec.hechoObservable = S.hechoObs !== false;
     rec.estado = JSON.parse(JSON.stringify(S.estado));
     rec.createdAt = Date.now();
@@ -1475,6 +1522,7 @@ a.btn { text-decoration: none; }
   } catch (e) {}
   updateNarr();
   $('#narr').addEventListener('input', updateNarr);
+  $('#resp').addEventListener('input', vivoResp);
   $('#por-nombre').addEventListener('input', renderReview);
   $('#por').addEventListener('change', function () { pintarQuien(); renderReview(); if ($('#por').value === '__otra') $('#por-nombre').focus(); try { localStorage.setItem('senales-por', $('#por').value.trim()); } catch (e) {} });
   $('#gate-form').addEventListener('submit', function (e) { e.preventDefault(); probarClave($('#gate-key').value); });
@@ -1530,13 +1578,13 @@ a.btn { text-decoration: none; }
     d.onState(function (e) {
       var antes = dictState; dictState = e.state; paintMic();
       /* Al terminar de dictar la narrativa, la ficha se llena sola. */
-      if (e.state === 'idle' && antes !== 'idle' && dictTarget && dictTarget.id === 'narr' && $('#narr').value.trim().length >= 25) estructurar();
+      if (e.state === 'idle' && antes !== 'idle' && dictTarget && $('#narr').value.trim().length >= 25) estructurar();
     });
     d.onPartial(function (e) { if (dictTarget) $('#partial-' + dictTarget.id).textContent = e.text ? 'Escuchando: ' + e.text : ''; });
     d.onFinal(function (e) {
       var t = dictTarget; if (!t || !e.text) return;
       t.value += t.value ? e.text : e.text.replace(/^\s+/, '');
-      if (t.id === 'narr') updateNarr();
+      if (t.id === 'narr') updateNarr(); else vivoResp();
     });
     paintMic();
   });
