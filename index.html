@@ -1,0 +1,1277 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Asistente de señales de cambio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Concepto: el recorrido de Resurgir. Tres estaciones con los tres círculos del logo (casa azul, personas naranja,
+   brote verde): contar la señal, responder lo que falta y revisar la ficha, que "brota" a medida que se completa. */
+:root {
+  --bg: #F1F5FB;
+  --surface: #FFFFFF;
+  --plate: #FFFFFF;
+  --ink: #10294A;
+  --muted: #52647C;
+  --line: #D3DEEC;
+  --band: #0B4A9E;
+  --band-ink: #FFFFFF;
+  --band-soft: #CFE2F8;
+  --sky: #1496DC;
+  --sun: #F28C13;
+  --leaf: #5FA51F;
+  --on-dot: #FFFFFF;
+  --accent: #0B4A9E;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E1ECFA;
+  --ok: #2F7D1F;
+  --ok-soft: #E4F2DA;
+  --warn: #9A5300;
+  --warn-soft: #FDEBD2;
+  --bad: #B3261E;
+  --bad-soft: #FBE4E2;
+  --shadow: 0 1px 2px rgba(16, 41, 74, .06), 0 8px 24px rgba(16, 41, 74, .06);
+  --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A1422; --surface: #12223A; --plate: #FFFFFF; --ink: #E8EFF8; --muted: #9EB1CA; --line: #27405F;
+    --band: #0E3F85; --band-ink: #FFFFFF; --band-soft: #C4DAF5;
+    --sky: #2BA6E8; --sun: #F7A541; --leaf: #86C548; --on-dot: #0A1422;
+    --accent: #74B6F6; --accent-ink: #06203F; --accent-soft: #17355C;
+    --ok: #8FD26B; --ok-soft: #1C3A1A; --warn: #F3B566; --warn-soft: #3D2B11; --bad: #FF9A92; --bad-soft: #45201D;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A1422; --surface: #12223A; --plate: #FFFFFF; --ink: #E8EFF8; --muted: #9EB1CA; --line: #27405F;
+  --band: #0E3F85; --band-ink: #FFFFFF; --band-soft: #C4DAF5;
+  --sky: #2BA6E8; --sun: #F7A541; --leaf: #86C548; --on-dot: #0A1422;
+  --accent: #74B6F6; --accent-ink: #06203F; --accent-soft: #17355C;
+  --ok: #8FD26B; --ok-soft: #1C3A1A; --warn: #F3B566; --warn-soft: #3D2B11; --bad: #FF9A92; --bad-soft: #45201D;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--font-body);
+  padding-block: 16px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1140px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--font-head); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(24px, 4vw, 34px); line-height: 1.08; font-weight: 800; letter-spacing: -.01em; }
+h2 { font-size: 19px; font-weight: 800; }
+p { margin: 0; }
+svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* Encabezado */
+.hero { position: relative; overflow: hidden; background: var(--band); color: var(--band-ink); border-radius: 22px; padding: 22px 22px 58px; display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: center; }
+.plate { background: var(--plate); border-radius: 14px; padding: 8px 14px; flex: none; max-width: 100%; line-height: 0; }
+.plate img { width: 250px; height: auto; }
+.hero-txt { flex: 1 1 320px; min-width: 0; }
+.lead { color: var(--band-soft); max-width: 62ch; margin-top: 8px; font-size: 15.5px; }
+.waves { position: absolute; left: 0; right: 0; bottom: -1px; width: 100%; height: 44px; display: block; }
+.waves .w1 { fill: var(--sky); }
+.waves .w2 { fill: var(--sun); }
+.waves .w3 { fill: var(--bg); }
+
+/* Barra: pestañas y recorrido */
+.bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; margin: 16px 0; }
+.tabs { display: inline-flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+.tab { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 700; padding: 8px 16px; cursor: pointer; border-radius: 999px; }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.tab:focus-visible, .btn:focus-visible, .pill:focus-visible, .stp:focus-visible, .q:focus-visible, .dimbar:focus-visible, .dirbtn:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.steps li { display: flex; align-items: center; gap: 6px; }
+.steps li + li::before { content: ""; width: 22px; height: 2px; background: var(--line); border-radius: 2px; }
+.stp { appearance: none; border: 1px solid transparent; background: none; font: inherit; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: 999px; font-weight: 600; }
+.stp[aria-current="step"] { background: var(--surface); border-color: var(--line); color: var(--ink); box-shadow: var(--shadow); }
+.dot { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--on-dot); flex: none; }
+.dot.s1 { background: var(--sky); } .dot.s2 { background: var(--sun); } .dot.s3 { background: var(--leaf); }
+.stp:not([aria-current="step"]):not(.done) .dot { opacity: .45; }
+.stp.done .lbl::after { content: " ✓"; color: var(--ok); }
+
+.grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 940px) { .grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); } }
+.stack { display: grid; gap: 16px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; min-width: 0; box-shadow: var(--shadow); scroll-margin-top: 12px; }
+.chead { display: flex; gap: 12px; align-items: center; }
+.chead .dot { width: 42px; height: 42px; }
+.chead .dot svg.i { width: 24px; height: 24px; }
+.step { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.hint { color: var(--muted); font-size: 13.5px; }
+.chead + .hint { margin-top: 10px; }
+.qty { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.qty input[type="text"] { flex: 1 1 70px; width: auto; text-align: center; font-variant-numeric: tabular-nums; }
+.qty .btn.small { min-width: 36px; justify-content: center; font-size: 16px; }
+.unit, .evid { display: grid; gap: 6px; }
+.files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.files:empty { display: none; }
+.files li { display: flex; gap: 4px; align-items: center; background: var(--accent-soft); border-radius: 999px; padding: 2px 4px 2px 12px; font-size: 13px; max-width: 100%; min-width: 0; }
+.files a, .flink { color: var(--accent); font-weight: 600; overflow-wrap: anywhere; }
+.flink { display: inline-block; margin-right: 12px; }
+.files button { appearance: none; border: 0; background: none; color: var(--bad); font: inherit; font-weight: 700; cursor: pointer; padding: 2px 8px; border-radius: 999px; }
+.who select { flex: 1 1 auto; }
+.otra-p { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.otra-p input[type="text"] { flex: 1 1 180px; width: auto; }
+textarea, input[type="text"], input[type="date"], input[type="search"], select {
+  width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; min-width: 0;
+}
+textarea { resize: vertical; line-height: 1.45; }
+#narr { margin-top: 6px; min-height: 190px; font-size: 16px; }
+.narr-top { display: flex; justify-content: space-between; align-items: end; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.partial { min-height: 0; font-size: 13.5px; color: var(--muted); font-style: italic; margin-top: 4px; }
+.partial:empty { display: none; }
+.pistas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.pistas .ptitle { font-size: 12.5px; color: var(--muted); margin-right: 2px; }
+.pista { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; border: 1px dashed var(--line); color: var(--muted); }
+.pista.on { border-style: solid; border-color: transparent; background: var(--ok-soft); color: var(--ok); }
+.pista.on::before { content: "✓ "; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.btn { appearance: none; font: inherit; font-weight: 700; border-radius: 10px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--accent); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn.small svg.i { width: 16px; height: 16px; }
+.btn.danger { color: var(--bad); }
+.btn.rec { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.status { min-height: 20px; margin-top: 8px; font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.status.err { color: var(--bad); }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--sky); }
+.dots i:nth-child(2) { background: var(--sun); } .dots i:nth-child(3) { background: var(--leaf); }
+.toast { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); max-width: min(560px, calc(100% - 32px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 14px; box-shadow: var(--shadow); }
+.toast:empty { display: none; }
+.toast.err { background: var(--bad); color: var(--surface); }
+details { margin-top: 10px; font-size: 13px; color: var(--muted); }
+summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+details ul { margin: 6px 0 0; padding-left: 18px; }
+.qlist { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.q { appearance: none; font: inherit; color: inherit; text-align: left; width: 100%; cursor: pointer; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; }
+.q:hover { border-color: var(--accent); }
+.qrow { display: flex; gap: 8px; align-items: start; }
+.qrow .q { flex: 1 1 auto; min-width: 0; }
+.q .qlabel { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.q.inf { background: var(--warn-soft); border-color: transparent; }
+.empty { color: var(--muted); font-size: 14px; padding: 10px 0 2px; }
+.ficha { display: grid; gap: 16px; }
+.frow { display: flex; flex-wrap: wrap; gap: 14px; }
+.field { flex: 1 1 200px; min-width: 0; display: grid; gap: 6px; align-content: start; border-radius: 10px; }
+.field.wide { flex-basis: 100%; }
+.fhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.fhead label, .fhead .lab { font-weight: 700; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+.num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { appearance: none; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
+.pill:hover { border-color: var(--accent); }
+.pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pill[aria-pressed="true"][data-v="Avance"] { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.pill[aria-pressed="true"][data-v="Retroceso"] { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.pill[aria-pressed="true"][data-v="Neutro/incierto"] { background: var(--warn); border-color: var(--warn); color: var(--surface); }
+.chip { font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.narrativa { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.chip.inferido { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.chip.falta { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.chip.manual { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.why { font-size: 12.5px; color: var(--muted); }
+.revhead { display: flex; gap: 14px; align-items: center; }
+.ring { width: 64px; height: 64px; flex: none; }
+.ring .trk { fill: none; stroke: var(--line); stroke-width: 7; }
+.ring .val { fill: none; stroke: var(--leaf); stroke-width: 7; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 32px 32px; }
+.ring text { fill: var(--ink); font: 800 17px var(--font-head); text-anchor: middle; dominant-baseline: central; }
+.review { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.review li { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+.mark { flex: none; width: 20px; height: 20px; border-radius: 10px; display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; border: 1.5px solid var(--line); color: var(--muted); }
+.review li.ok .mark { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.review li.ok { color: var(--ink); }
+.review li:not(.ok) { color: var(--muted); }
+.alerts { margin-top: 12px; background: var(--warn-soft); color: var(--ink); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
+.alerts ul { margin: 4px 0 0; padding-left: 18px; }
+.savebar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 14px; }
+.who { display: flex; gap: 8px; align-items: center; flex: 1 1 220px; }
+.who label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+/* Registros */
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.resumen { display: grid; gap: 16px; margin-top: 14px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .resumen { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); } }
+.rtitle { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.dirs { display: flex; flex-wrap: wrap; gap: 8px; }
+.dirbtn { appearance: none; font: inherit; color: var(--ink); cursor: pointer; flex: 1 1 90px; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: grid; }
+.dirbtn b { font: 800 24px/1.1 var(--font-head); font-variant-numeric: tabular-nums; }
+.dirbtn span { font-size: 12.5px; color: var(--muted); }
+.dirbtn.avance b { color: var(--ok); } .dirbtn.retro b { color: var(--bad); } .dirbtn.neutro b { color: var(--warn); }
+.dirbtn[aria-pressed="true"], .dimbar[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.dims { display: grid; gap: 4px; }
+.dimbar { appearance: none; font: inherit; color: var(--ink); cursor: pointer; background: none; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; display: grid; grid-template-columns: minmax(0, 11em) minmax(0, 1fr) 2.2em; gap: 8px; align-items: center; text-align: left; font-size: 13.5px; }
+.dimbar:hover { border-color: var(--line); }
+.dimbar .trk { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.dimbar .fill { display: block; height: 100%; background: var(--sky); border-radius: 5px; }
+.dimbar .n { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.filtros input { flex: 1 1 220px; }
+.rec-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.rec { display: grid; gap: 8px; box-shadow: none; background: var(--bg); }
+.rec p.what { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rec.open p.what { -webkit-line-clamp: unset; display: block; }
+.meta { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; }
+.tag.avance { background: var(--ok-soft); color: var(--ok); } .tag.retro { background: var(--bad-soft); color: var(--bad); } .tag.neutro { background: var(--warn-soft); color: var(--warn); }
+dl.det { display: grid; grid-template-columns: minmax(110px, 170px) minmax(0, 1fr); gap: 4px 12px; margin: 4px 0 0; font-size: 14px; }
+dl.det dt { color: var(--muted); font-weight: 600; }
+dl.det dd { margin: 0; overflow-wrap: anywhere; }
+.reclist { display: grid; gap: 12px; margin-top: 12px; }
+.note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+a.btn { text-decoration: none; }
+.callout { background: var(--warn-soft); border-radius: 12px; padding: 12px 14px; margin-top: 12px; display: grid; gap: 8px; font-size: 14px; }
+.callout strong { font-family: var(--font-head); font-size: 15px; }
+.callout ol { margin: 4px 0 0; padding-left: 20px; }
+.callout details { margin-top: 0; }
+.callout textarea { background: var(--surface); }
+
+.gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 16px; }
+.gate .card { max-width: 420px; width: 100%; display: grid; gap: 10px; }
+.gate input { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.gate .btn { justify-content: center; }
+.gate .plate { justify-self: start; border: 1px solid var(--line); }
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .tab, .pill, .q, .stp, .pista { transition: border-color .15s, background-color .15s, color .15s; }
+  .ring .val { transition: stroke-dashoffset .5s ease; }
+  .dimbar .fill { transition: width .4s ease; }
+  .field.lit { animation: lit 1.1s ease-out both; }
+  @keyframes lit { 0% { box-shadow: 0 0 0 8px var(--accent-soft); background: var(--accent-soft); } 100% { box-shadow: 0 0 0 8px transparent; background: transparent; } }
+  .dots i { animation: bob .9s ease-in-out infinite; }
+  .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  .btn.rec { animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .65; } }
+  .waves .w1 { animation: drift 9s ease-in-out infinite alternate; }
+  .waves .w2 { animation: drift 12s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from { transform: translateX(-18px); } to { transform: translateX(18px); } }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-casa" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V20h-5v-5H9v5H4z"/></symbol>
+  <symbol id="i-gente" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M6.5 20c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"/><circle cx="4.5" cy="10.5" r="2"/><path d="M1.5 18c0-1.9 1.2-3.4 3-3.8"/><circle cx="19.5" cy="10.5" r="2"/><path d="M22.5 18c0-1.9-1.2-3.4-3-3.8"/></symbol>
+  <symbol id="i-brote" viewBox="0 0 24 24"><path d="M12 21v-9"/><path d="M12 12c0-4 3-6.500 7.500-6.500C19.500 9.500 16.500 12 12 12z"/><path d="M12 15c0-3-2.500-5-6.500-5 0 3 2.500 5 6.500 5z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+</svg>
+<datalist id="fuentes">
+  <option value="Acta de la sesión"></option>
+  <option value="Lista de asistencia"></option>
+  <option value="Informe del proyecto"></option>
+  <option value="Registro municipal"></option>
+  <option value="Censo comunitario"></option>
+  <option value="Testimonio"></option>
+  <option value="Observación directa"></option>
+</datalist>
+
+<div class="gate" id="gate">
+  <form class="card" id="gate-form">
+    <div class="plate"><img src="logo-resurgir.png" alt="Resurgir" width="220" height="73"></div>
+    <h2>Asistente de señales de cambio</h2>
+    <p class="hint">Escribe la clave del equipo para entrar.</p>
+    <label for="gate-key" class="hint">Clave</label>
+    <input id="gate-key" type="password" autocomplete="off">
+    <button class="btn primary" type="submit">Entrar</button>
+    <p class="status err" id="gate-msg" role="alert"></p>
+  </form>
+</div>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="plate"><img src="logo-resurgir.png" alt="Resurgir" width="250" height="83"></div>
+    <div class="hero-txt">
+      <h1>Asistente de señales de cambio</h1>
+      <p class="lead">Cuenta una señal con tu voz. El asistente propone la ficha, te pregunta lo que falta y tú confirmas antes de guardar.</p>
+    </div>
+    <svg class="waves" viewBox="0 0 1200 60" preserveAspectRatio="none" aria-hidden="true">
+      <path class="w1" d="M-40 26 C150 2 300 52 450 28 S750 4 900 28 S1100 48 1240 22 V60 H-40Z"/>
+      <path class="w2" d="M-40 40 C160 22 320 56 520 38 S860 22 1040 40 S1180 50 1240 38 V60 H-40Z"/>
+      <path class="w3" d="M0 48 C200 30 350 62 600 46 S1000 30 1200 50 V60 H0Z"/>
+    </svg>
+  </header>
+
+  <div class="bar">
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button class="tab" role="tab" id="tab-nueva" aria-selected="true" aria-controls="vista-nueva" type="button">Nueva señal</button>
+      <button class="tab" role="tab" id="tab-regs" aria-selected="false" aria-controls="vista-regs" type="button">Registros <span id="count"></span></button>
+    </nav>
+    <ol class="steps" id="steps" aria-label="Recorrido">
+      <li><button class="stp" type="button" data-go="card-1"><span class="dot s1"><svg class="i"><use href="#i-casa"/></svg></span><span class="lbl">Cuenta</span></button></li>
+      <li><button class="stp" type="button" data-go="card-2"><span class="dot s2"><svg class="i"><use href="#i-gente"/></svg></span><span class="lbl">Responde</span></button></li>
+      <li><button class="stp" type="button" data-go="card-3"><span class="dot s3"><svg class="i"><use href="#i-brote"/></svg></span><span class="lbl">Revisa y guarda</span></button></li>
+    </ol>
+  </div>
+
+  <p class="toast" id="flash" role="status" aria-live="polite"></p>
+
+  <section id="vista-nueva" role="tabpanel" aria-labelledby="tab-nueva">
+    <div class="grid">
+      <div class="stack">
+        <div class="card" id="card-1">
+          <div class="chead">
+            <span class="dot s1"><svg class="i"><use href="#i-casa"/></svg></span>
+            <div><div class="step">Paso 1</div><h2>Cuenta la señal</h2></div>
+          </div>
+          <p class="hint">¿Qué ocurrió esta semana que te llamó la atención? ¿Dónde y con quién? ¿Qué hizo diferente alguien respecto a antes?</p>
+          <div class="narr-top">
+            <label for="narr" class="hint">Narrativa <span id="narr-count"></span></label>
+            <button class="btn small" id="mic-narr" type="button" hidden><svg class="i"><use href="#i-mic"/></svg><span>Dictar</span></button>
+          </div>
+          <textarea id="narr" rows="8" placeholder="Pulsa aquí y dicta o escribe lo que pasó, con tus propias palabras."></textarea>
+          <p class="partial" id="partial-narr" aria-live="off"></p>
+          <div class="pistas" id="pistas" title="Guía orientativa: se enciende según las palabras de tu relato."><span class="ptitle">Tu relato ya menciona:</span></div>
+          <details>
+            <summary>¿Cómo dicto con la voz?</summary>
+            <ul>
+              <li>Si ves el botón <strong>Dictar</strong>, púlsalo y habla: el texto aparece en el cuadro. Si no aparece, usa el dictado de tu dispositivo:</li>
+              <li>Windows 11: haz clic en el cuadro y presiona <strong>Win + H</strong>.</li>
+              <li>Celular: toca el cuadro y usa el micrófono del teclado.</li>
+              <li>Mac: presiona dos veces la tecla <strong>Fn</strong>.</li>
+              <li>Elige español como idioma de dictado.</li>
+            </ul>
+          </details>
+          <div class="actions">
+            <button class="btn primary" id="btn-est" type="button">Estructurar ficha</button>
+            <button class="btn" id="btn-stop" type="button" hidden>Detener</button>
+            <button class="btn" id="btn-ej" type="button">Probar con un ejemplo ficticio</button>
+            <button class="btn" id="btn-clear" type="button">Limpiar todo</button>
+          </div>
+          <div class="status"><span class="dots" id="dots" hidden><i></i><i></i><i></i></span><span id="est-status" role="status" aria-live="polite"></span></div>
+          <div class="callout" id="no-claude" hidden>
+            <strong>En esta versión la ficha se llena a mano</strong>
+            <p>Escribe la narrativa y completa los campos del paso 3. El asistente que estructura la ficha automáticamente solo funciona en la versión de Claude, con cuenta.</p>
+            <div class="actions" style="margin-top:0">
+              <a class="btn" id="open-link" href="https://claude.ai/artifact/AJaGhMyk4gqam2fs7sTnAE" target="_blank" rel="noopener">Abrir la versión con asistente</a>
+            </div>
+            <details id="manual">
+              <summary>O usa el modo manual</summary>
+              <ol>
+                <li>Escribe o dicta la narrativa y pulsa «Copiar petición».</li>
+                <li>Pega la petición en un chat con Claude y copia su respuesta.</li>
+                <li>Pega la respuesta abajo y pulsa «Aplicar respuesta».</li>
+              </ol>
+              <div class="actions"><button class="btn small" id="btn-copy" type="button">Copiar petición</button></div>
+              <textarea id="manual-prompt" rows="4" readonly hidden aria-label="Petición para copiar"></textarea>
+              <label for="manual-resp" class="hint" style="display:block;margin-top:10px">Respuesta de Claude</label>
+              <textarea id="manual-resp" rows="4" placeholder="Pega aquí la respuesta completa de Claude."></textarea>
+              <div class="actions"><button class="btn small primary" id="btn-apply" type="button">Aplicar respuesta</button></div>
+              <p class="status" id="manual-status" role="status" aria-live="polite"></p>
+            </details>
+          </div>
+          <p class="note">Al guardar, la ficha se envía al Excel de registros de Resurgir en SharePoint.</p>
+        </div>
+
+        <div class="card" id="card-2">
+          <div class="chead">
+            <span class="dot s2"><svg class="i"><use href="#i-gente"/></svg></span>
+            <div><div class="step">Paso 2</div><h2>Responde lo que falta</h2></div>
+          </div>
+          <div id="qs"></div>
+          <div id="resp-box" hidden>
+            <div class="narr-top">
+              <label for="resp" class="hint">Tu respuesta (también por dictado)</label>
+              <button class="btn small" id="mic-resp" type="button" hidden><svg class="i"><use href="#i-mic"/></svg><span>Dictar</span></button>
+            </div>
+            <textarea id="resp" rows="3" placeholder="Responde a una o varias preguntas." style="margin-top:6px"></textarea>
+            <p class="partial" id="partial-resp" aria-live="off"></p>
+            <div class="actions">
+              <button class="btn primary" id="btn-resp" type="button">Agregar y actualizar ficha</button>
+              <button class="btn small" id="btn-listen-all" type="button" hidden>Escuchar las preguntas</button>
+              <button class="btn small" id="btn-listen-stop" type="button" hidden>Detener lectura</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="card" id="card-3">
+          <div class="chead">
+            <span class="dot s3"><svg class="i"><use href="#i-brote"/></svg></span>
+            <div><div class="step">Paso 3</div><h2>Revisa la ficha</h2></div>
+          </div>
+          <p class="hint">Cada campo muestra de dónde salió. Puedes corregir cualquier valor; lo que edites a mano no se vuelve a sobrescribir.</p>
+          <div class="ficha" id="ficha" style="margin-top:14px"></div>
+        </div>
+        <div class="card">
+          <div class="revhead">
+            <svg class="ring" viewBox="0 0 64 64" role="img" aria-labelledby="rev-count">
+              <circle class="trk" cx="32" cy="32" r="26"/>
+              <circle class="val" id="ring-val" cx="32" cy="32" r="26" stroke-dasharray="163.36" stroke-dashoffset="163.36"/>
+              <text x="32" y="33" id="ring-num">0/8</text>
+            </svg>
+            <div><h2>Lista de revisión</h2><p class="hint" id="rev-count"></p></div>
+          </div>
+          <ul class="review" id="review"></ul>
+          <div class="alerts" id="alerts" hidden></div>
+          <div class="savebar">
+            <div class="who">
+              <label for="por">Registrada por</label>
+              <select id="por"><option value="">— Elegir —</option></select>
+            </div>
+            <button class="btn primary" id="btn-save" type="button" disabled>Confirmar y guardar</button>
+          </div>
+          <div class="otra-p" id="por-otra" hidden>
+            <input type="text" id="por-nombre" autocomplete="name" placeholder="Nombre y apellido" aria-label="Nombre de quien registra">
+            <input type="text" id="por-cargo" autocomplete="organization-title" placeholder="Puesto" aria-label="Puesto de quien registra">
+            <input type="text" id="por-comp" list="componentes" autocomplete="off" placeholder="Componente" aria-label="Componente de quien registra">
+            <datalist id="componentes">
+              <option value="Medios de vida"></option>
+              <option value="Gobernanza"></option>
+              <option value="Reducción de riesgo de desastres"></option>
+            </datalist>
+          </div>
+          <p class="hint" id="por-info" style="margin-top:6px"></p>
+          <p class="status" id="save-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="vista-regs" role="tabpanel" aria-labelledby="tab-regs" hidden>
+    <div class="card">
+      <div class="toolbar">
+        <div>
+          <h2>Registros guardados</h2>
+          <p class="hint" id="regs-hint"></p>
+        </div>
+        <button class="btn" id="btn-csv" type="button" disabled>Descargar para Excel (CSV)</button>
+      </div>
+      <p class="status" id="regs-status" role="status" aria-live="polite"></p>
+      <div class="resumen" id="resumen" hidden></div>
+      <div class="filtros" id="filtros" hidden>
+        <input type="search" id="buscar" placeholder="Buscar por palabra, actor o persona que registró" aria-label="Buscar en los registros">
+        <button class="btn small" id="btn-nofiltro" type="button" hidden>Quitar filtros</button>
+        <span class="hint" id="filtro-info"></span>
+      </div>
+      <div class="reclist" id="reclist"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Conexión con el flujo de Power Automate que escribe en el Excel de SharePoint ---------- */
+  var FLOW_URL = 'https://defaultb80c308cd08d4b07915c11a92d9cc6.bd.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/31/workflows/3f468a09eb0c48d79a6470cc830ddc78/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=IfrgWQ9jz10u7rv7k9Jlm-gDfDrvhQpqgG2m85r1G4I';
+  var KEY_HASH = 'd8ef1721bbab789b380e0aa64bfbca3d8c07094b1faa7389a5abc2a7894c3089';
+  var CLAVE = '';
+  async function sha(t) {
+    var b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+    return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+  }
+  async function probarClave(k, callado) {
+    var ok = false;
+    try { ok = (await sha(k)) === KEY_HASH; } catch (e) {}
+    if (ok) { CLAVE = k; try { sessionStorage.setItem('senales-clave', k); } catch (e) {} document.querySelector('#gate').hidden = true; }
+    else if (!callado) document.querySelector('#gate-msg').textContent = 'La clave no coincide. Revísala e intenta de nuevo.';
+  }
+  async function enviarAFlujo(rec) {
+    var ok = criterios(rec, rec.hechoObservable).filter(function (c) { return c.ok; }).length;
+    var d = new Date(rec.createdAt), p2 = function (n) { return ('0' + n).slice(-2); };
+    var fila = {
+      clave: CLAVE,
+      'ID': 'S-' + rec.createdAt.toString(36).toUpperCase(),
+      'Guardada el': d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()),
+      'Fecha del hecho': rec.fechaHecho, 'Registrada por': rec.registradoPor, 'Cargo': rec.registradoCargo, 'Componente': rec.registradoComponente,
+      'Que paso': rec.quePaso, 'Quien actuo': rec.quien, 'Nivel': rec.nivel, 'Que cambio': rec.queCambio,
+      'Dimension': rec.dimension, 'Direccion': rec.direccion, 'Contribucion del proyecto': rec.contribucion, 'Evidencia': rec.evidencia,
+      'Certeza': rec.certeza, 'Para profundizar': rec.profundizar, 'Cantidad': rec.cantidad, 'Unidad': rec.unidad, 'Fuente del dato': rec.fuente,
+      'Criterios cumplidos': String(ok), 'Narrativa original': rec.narrativa
+    };
+    var r = await fetch(FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fila) });
+    if (!r.ok) throw { code: 'flujo_' + r.status };
+  }
+
+  /* ---------- Datos fijos ---------- */
+  var DIMS = ['Políticas', 'Prácticas/metodologías', 'Flujos de recursos', 'Relaciones y conexiones', 'Dinámicas de poder', 'Modelos mentales'];
+  var ENUMS = {
+    nivel: ['Comunitario', 'Municipal', 'Departamental', 'Nacional'],
+    dimension: DIMS,
+    direccion: ['Avance', 'Retroceso', 'Neutro/incierto'],
+    contribucion: ['Directa', 'Parcial', 'Ninguna (solo contexto)'],
+    certeza: ['Alta', 'Media', 'Baja'],
+    profundizar: ['Sí', 'No']
+  };
+  var FIELDS = [
+    { k: 'fechaHecho', n: '', label: 'Fecha del hecho', type: 'date', g: 'meta', q: '¿Cuándo ocurrió el hecho?' },
+    { k: 'quePaso', n: '1', label: '¿Qué pasó?', type: 'textarea', g: 'quePaso', q: '¿Qué ocurrió exactamente, cuándo y dónde? ¿Qué se pudo ver, escuchar o leer?' },
+    { k: 'quien', n: '2', label: '¿Quién actuó?', type: 'text', g: 'quien', q: '¿Quién tomó la decisión o la acción y de qué institución?' },
+    { k: 'nivel', n: '2', label: 'Nivel', type: 'select', g: 'quien', q: '¿A qué nivel ocurrió: comunitario, municipal, departamental o nacional?' },
+    { k: 'queCambio', n: '3', label: '¿Qué cambió?', type: 'textarea', g: 'queCambio', q: '¿Qué era distinto antes y qué se hace ahora que antes no se hacía?' },
+    { k: 'dimension', n: '4', label: 'Dimensión', type: 'select', g: 'clasif', q: '¿Qué parte del sistema cambió? ¿Cuál de las seis dimensiones lo explica mejor?' },
+    { k: 'direccion', n: '5', label: 'Dirección', type: 'select', g: 'clasif', q: '¿Es un avance, un retroceso o aún no está claro?' },
+    { k: 'contribucion', n: '6', label: 'Contribución del proyecto', type: 'select', g: 'clasif', q: '¿Qué hizo el proyecto para que esto ocurriera? ¿Fue directa, parcial o solo contexto?' },
+    { k: 'evidencia', n: '7', label: 'Evidencia', type: 'text', g: 'evid', q: '¿Qué documento, foto, acta, mensaje o testimonio lo comprueba y dónde está?' },
+    { k: 'certeza', n: '8', label: 'Certeza', type: 'select', g: 'cert', q: '¿Lo vimos directamente o nos lo contaron? ¿Qué tan seguros estamos?' },
+    { k: 'profundizar', n: '9', label: 'Para profundizar', type: 'select', g: 'cert', q: '¿Podría convertirse en una historia de cambio? ¿Vale la pena entrevistar a alguien?' },
+    { k: 'cantidad', n: '10', label: 'Cantidad', type: 'text', g: 'quant', q: '¿A cuántas personas, familias, comunidades o instituciones alcanza este cambio? Si no hay dato, di «sin dato».' },
+    { k: 'unidad', n: '10', label: 'Unidad', type: 'text', g: 'quant', q: '¿En qué unidad está esa cantidad?' },
+    { k: 'fuente', n: '10', label: 'Fuente del dato', type: 'text', g: 'quant', q: '¿De dónde sale ese dato?' }
+  ];
+  var KEYS = FIELDS.map(function (f) { return f.k; });
+  var CHIP = { pendiente: 'Sin llenar', narrativa: 'Dicho en la narrativa', inferido: 'Sugerido: confírmalo', falta: 'Falta', manual: 'Editado por ti' };
+  var EJEMPLO = 'Esta semana, en la sesión del concejo del municipio de Ejemplo, aprobaron el plan municipal de gestión del riesgo. Antes solo existía un borrador que nadie había votado. Lo presentó la comisión de gestión del riesgo y el proyecto ayudó a redactar el documento. Tengo el acta de la sesión. Todavía no sé cuántas comunidades cubre.';
+  /* Quiénes registran señales: al elegir el nombre, el cargo y el componente se guardan solos. */
+  var EQUIPO = [
+    { n: 'Denilson Argueta', c: 'Coordinador local programático', a: 'Medios de vida' },
+    { n: 'Jessica Menéndez', c: 'Especialista de proyectos', a: 'Gobernanza' },
+    { n: 'César Chacón', c: 'Coordinador de gobernanza', a: 'Gobernanza' },
+    { n: 'Leticia Colop', c: 'Especialista de reducción de riesgo de desastres', a: 'Reducción de riesgo de desastres' },
+    { n: 'Gonzalo López', c: 'Coordinador de reducción de riesgo de desastres', a: 'Reducción de riesgo de desastres' }
+  ];
+  var UNIDADES = ['Personas', 'Familias', 'Hogares', 'Comunidades', 'Municipios', 'Instituciones', 'Organizaciones', 'Comités o comisiones', 'Escuelas', 'Documentos o planes'];
+  var TIPOS = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm' };
+  /* Guía orientativa mientras se escribe: solo mira palabras, no sustituye al asistente. */
+  var PISTAS = [
+    { t: 'Quién', re: /(alcald|concej|comit[eé]|comisi[oó]n|junta|l[ií]der|municipalidad|ministerio|secretar[ií]a|asociaci[oó]n|cooperativa|director|coordinador|familias|vecin|instituci[oó]n|gobierno|protecci[oó]n civil|bomberos|escuela|docente)/i },
+    { t: 'Dónde', re: /(municipio|comunidad|aldea|barrio|departamento|caser[ií]o|colonia|cant[oó]n|vereda|sector|distrito)/i },
+    { t: 'Cuándo', re: /(ayer|hoy|esta semana|semana pasada|este mes|mes pasado|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|\d{1,2}\/\d{1,2})/i },
+    { t: 'Antes y ahora', re: /(antes|ahora|por primera vez|ya no|nunca|anteriormente|hasta ahora|desde entonces|a partir de)/i },
+    { t: 'Evidencia', re: /(acta|foto|video|documento|mensaje|testimonio|informe|listado|captura|audio|oficio|resoluci[oó]n|acuerdo firmado)/i },
+    { t: 'Cifra', re: /(\d|sin dato)/i }
+  ];
+
+  /* ---------- Estado ---------- */
+  var S = { ficha: {}, estado: {}, touched: {}, analizado: false, hechoObs: null, alertas: [], preguntas: [], just: {}, busy: false, ctl: null, saving: false };
+  var records = [], localRecords = [], dbReady = false, dbErr = '', loadedOnce = false;
+  var sampleApi = null, dbApi = null, userApi = null, dlApi = null, tts = null, uid = null, ttsState = 'idle';
+  var dict = null, dictState = 'idle', dictTarget = null, dictLang = 'es';
+  var assetsApi = null;
+  var F = { q: '', dim: '', dir: '' };
+  var ui = {};
+  var RING = 163.36;
+
+  function $(s) { return document.querySelector(s); }
+  function use(name) {
+    try { return (window.claude && window.claude.use) ? Promise.resolve(window.claude.use(name)).catch(function () { return null; }) : Promise.resolve(null); }
+    catch (e) { return Promise.resolve(null); }
+  }
+  function h(tag, props) {
+    var el = document.createElement(tag);
+    if (props) Object.keys(props).forEach(function (k) {
+      var v = props[k];
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.indexOf('on') === 0) el.addEventListener(k.slice(2), v);
+      else if (v === true) el.setAttribute(k, '');
+      else if (v !== false && v != null) el.setAttribute(k, v);
+    });
+    for (var i = 2; i < arguments.length; i++) {
+      var kid = arguments[i];
+      if (kid == null || kid === false) continue;
+      if (Array.isArray(kid)) { kid.forEach(function (x) { el.append(x.nodeType ? x : document.createTextNode(String(x))); }); continue; }
+      el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    }
+    return el;
+  }
+  function resetState() {
+    KEYS.forEach(function (k) { S.ficha[k] = ''; S.estado[k] = 'pendiente'; });
+    S.touched = {}; S.analizado = false; S.hechoObs = null; S.alertas = []; S.preguntas = []; S.just = {}; S.archivos = [];
+  }
+  resetState();
+  function flash(msg, isErr) {
+    var el = $('#flash'); el.textContent = msg || ''; el.className = 'toast' + (isErr ? ' err' : '');
+    if (msg) setTimeout(function () { if (el.textContent === msg) el.textContent = ''; }, 6000);
+  }
+  function setStatus(id, msg, isErr) {
+    var el = $(id); el.textContent = msg || '';
+    var box = id === '#est-status' ? el.parentNode : el;
+    box.className = 'status' + (isErr ? ' err' : '');
+  }
+
+  /* ---------- Ficha ---------- */
+  function buildFicha() {
+    var host = $('#ficha'); host.textContent = '';
+    var rowEl = null, rowKey = null;
+    FIELDS.forEach(function (f) {
+      if (f.g !== rowKey) { rowKey = f.g; rowEl = h('div', { class: 'frow' }); host.append(rowEl); }
+      var id = 'f-' + f.k, ctl, pills = null, body = null, sync = null, lab = false;
+      if (f.k === 'unidad') {
+        /* Lista de unidades frecuentes; «Otra unidad» abre un cuadro para escribirla. El valor final vive en ctl. */
+        ctl = h('input', { id: id, type: 'text', hidden: true, tabindex: '-1', 'aria-hidden': 'true' });
+        var sel = h('select', { id: id + '-sel', 'aria-labelledby': id + '-l' }, h('option', { value: '', text: '— Elegir —' }),
+          UNIDADES.map(function (o) { return h('option', { value: o, text: o }); }), h('option', { value: '__otra', text: 'Otra unidad…' }));
+        var otra = h('input', { id: id + '-otra', type: 'text', autocomplete: 'off', placeholder: 'Escribe la unidad', 'aria-label': 'Otra unidad', hidden: true });
+        var push = function () { ctl.value = sel.value === '__otra' ? otra.value : sel.value; otra.hidden = sel.value !== '__otra'; ctl.dispatchEvent(new Event('input')); };
+        sel.addEventListener('change', function () { push(); if (sel.value === '__otra') otra.focus(); });
+        otra.addEventListener('input', push);
+        sync = function (v) {
+          var hit = UNIDADES.filter(function (o) { return o.toLowerCase() === v.toLowerCase(); })[0];
+          if (hit) { sel.value = hit; otra.hidden = true; }
+          else if (v) { sel.value = '__otra'; otra.hidden = false; if (otra.value.trim() !== v) otra.value = v; }
+          else if (sel.value !== '__otra' || !S.touched.unidad) { sel.value = ''; otra.value = ''; otra.hidden = true; }
+        };
+        lab = true; body = [ctl, h('div', { class: 'unit' }, sel, otra)];
+      } else if (f.k === 'cantidad') {
+        /* Se puede escribir, subir o bajar con los botones, o marcar «Sin dato». */
+        ctl = h('input', { id: id, type: 'text', inputmode: 'numeric', autocomplete: 'off', placeholder: '0' });
+        var paso = function (d) { return function () {
+          var m = /\d+/.exec(ctl.value), n = m ? parseInt(m[0], 10) : 0;
+          ctl.value = String(Math.max(0, n + d)); ctl.dispatchEvent(new Event('input'));
+        }; };
+        var sinDato = h('button', { class: 'pill', type: 'button', 'aria-pressed': 'false', text: 'Sin dato', onclick: function () {
+          ctl.value = /^sin dato$/i.test(ctl.value.trim()) ? '' : 'sin dato'; ctl.dispatchEvent(new Event('input'));
+        } });
+        sync = function (v) { sinDato.setAttribute('aria-pressed', String(/^sin dato$/i.test(v))); };
+        body = [h('div', { class: 'qty' },
+          h('button', { class: 'btn small', type: 'button', 'aria-label': 'Restar uno', text: '−', onclick: paso(-1) }), ctl,
+          h('button', { class: 'btn small', type: 'button', 'aria-label': 'Sumar uno', text: '+', onclick: paso(1) }), sinDato)];
+      }
+      else if (f.type === 'textarea') ctl = h('textarea', { id: id, rows: 3 });
+      else if (f.type === 'select') {
+        /* El valor vive en el mismo <select> de siempre; los botones solo lo eligen con un toque. */
+        ctl = h('select', { id: id, hidden: true, tabindex: '-1', 'aria-hidden': 'true' }, h('option', { value: '', text: '— Elegir —' }), ENUMS[f.k].map(function (o) { return h('option', { value: o, text: o }); }));
+        pills = h('div', { class: 'pills', role: 'group', 'aria-labelledby': id + '-l' }, ENUMS[f.k].map(function (o) {
+          return h('button', { class: 'pill', type: 'button', 'data-v': o, 'aria-pressed': 'false', text: o, onclick: function () {
+            ctl.value = ctl.value === o ? '' : o;
+            ctl.dispatchEvent(new Event('change'));
+          } });
+        }));
+      } else if (f.type === 'date') ctl = h('input', { id: id, type: 'date' });
+      else ctl = h('input', { id: id, type: 'text', autocomplete: 'off', list: f.k === 'fuente' ? 'fuentes' : null });
+      if (f.k === 'evidencia') body = [ctl, evidBox()];
+      var chip = h('span', { class: 'chip' });
+      var why = h('p', { class: 'why', hidden: true });
+      var wide = (f.type === 'textarea' || f.k === 'evidencia' || f.g === 'clasif') ? ' wide' : '';
+      var num = f.n ? h('span', { class: 'num', text: f.n }) : null;
+      var label = (pills || lab) ? h('span', { class: 'lab', id: id + '-l' }, num, f.label) : h('label', { for: id }, num, f.label);
+      var field = h('div', { class: 'field' + wide }, h('div', { class: 'fhead' }, label, chip), (body || [ctl, pills]).filter(Boolean), why);
+      rowEl.append(field);
+      ui[f.k] = { ctl: ctl, chip: chip, why: why, pills: pills, field: field, sync: sync };
+      ctl.addEventListener(f.type === 'select' || f.type === 'date' ? 'change' : 'input', function () {
+        S.ficha[f.k] = ctl.value.trim ? ctl.value.trim() : ctl.value;
+        S.touched[f.k] = true;
+        S.estado[f.k] = S.ficha[f.k] ? 'manual' : (S.analizado ? 'falta' : 'pendiente');
+        paintField(f.k); renderQuestions(); renderReview();
+      });
+    });
+  }
+  function paintField(k) {
+    var u = ui[k], e = S.estado[k];
+    if (e === 'falta' && (k === 'unidad' || k === 'fuente')) e = 'pendiente';
+    if (u.ctl.value !== S.ficha[k]) u.ctl.value = S.ficha[k];
+    if (u.pills) Array.prototype.forEach.call(u.pills.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === S.ficha[k])); });
+    if (u.sync) u.sync(S.ficha[k]);
+    u.chip.textContent = CHIP[e]; u.chip.className = 'chip ' + e;
+    var j = S.just[k];
+    if (j && S.ficha[k] && e !== 'manual') { u.why.textContent = 'Por qué: ' + j; u.why.hidden = false; }
+    else { u.why.hidden = true; u.why.textContent = ''; }
+  }
+  function paintAll() { KEYS.forEach(paintField); renderArchivos(); renderQuestions(); renderReview(); }
+
+  /* ---------- Evidencia: tomar foto o subir un archivo ---------- */
+  function blobUrl(id) { return /^[\w-]{16,64}$/.test(String(id || '')) ? '/_blob/' + id : null; }
+  function evidBox() {
+    var cam = h('input', { id: 'file-cam', type: 'file', accept: 'image/*', capture: 'environment', hidden: true, tabindex: '-1' });
+    var doc = h('input', { id: 'file-doc', type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp,application/pdf', multiple: true, hidden: true, tabindex: '-1' });
+    [cam, doc].forEach(function (inp) { inp.addEventListener('change', function () { var fs = Array.prototype.slice.call(inp.files || [], 0, 5); inp.value = ''; subir(fs); }); });
+    return h('div', { class: 'evid' },
+      h('div', { class: 'actions', id: 'evid-actions', style: 'margin-top:0', hidden: true },
+        h('button', { class: 'btn small', type: 'button', text: 'Tomar foto', onclick: function () { cam.click(); } }),
+        h('button', { class: 'btn small', type: 'button', text: 'Subir foto o PDF', onclick: function () { doc.click(); } })),
+      cam, doc,
+      h('ul', { class: 'files', id: 'files' }),
+      h('p', { class: 'status', id: 'evid-status', role: 'status', 'aria-live': 'polite', style: 'margin-top:0;min-height:0' }),
+      h('p', { class: 'hint', id: 'evid-note', text: 'Describe la evidencia y dónde está guardada (por ejemplo, el enlace o la carpeta de Teams). En esta versión no se adjuntan archivos.' }));
+  }
+  function fragmento(nombre) { return 'Archivo: ' + nombre; }
+  function tocarEvidencia(v) {
+    S.ficha.evidencia = v; S.touched.evidencia = true;
+    S.estado.evidencia = v ? 'manual' : (S.analizado ? 'falta' : 'pendiente');
+    paintField('evidencia'); renderQuestions(); renderReview();
+  }
+  async function subir(files) {
+    if (!assetsApi || !files.length) return;
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i], nombre = file.name || 'foto.jpg';
+      var ext = (nombre.split('.').pop() || '').toLowerCase();
+      var known = Object.keys(TIPOS).some(function (k) { return TIPOS[k] === file.type; });
+      setStatus('#evid-status', 'Subiendo ' + nombre + '…');
+      try {
+        var r = await assetsApi.upload(file, known ? undefined : { type: TIPOS[ext] || file.type || 'application/octet-stream' });
+        S.archivos.push({ id: r.id, nombre: nombre, tipo: r.contentType });
+        var fr = fragmento(nombre);
+        if (S.ficha.evidencia.indexOf(fr) < 0) tocarEvidencia(S.ficha.evidencia ? S.ficha.evidencia + '; ' + fr : fr);
+        setStatus('#evid-status', 'Archivo adjunto. Se guardará junto con la señal.');
+      } catch (e) {
+        var c = e && e.code, msg = 'No se pudo subir ' + nombre + '. Intenta de nuevo.';
+        if (c === 'too_large') msg = nombre + ' pesa más de 20 MB. Sube una versión más liviana.';
+        else if (c === 'unsupported_type') msg = 'Solo se aceptan fotos (JPG, PNG), PDF o video MP4. Si es Word o Excel, guárdalo como PDF y súbelo.';
+        else if (c === 'quota_or_state') msg = 'El espacio para archivos de esta página está lleno. Avisa a quien la administra.';
+        else if (c === 'rate_limited') msg = 'Demasiadas subidas seguidas. Espera un momento y vuelve a intentar.';
+        else if (c === 'not_granted' || c === 'capability_disabled' || c === 'capability_removed') { assetsApi = null; pintarAdjuntos(); msg = 'En esta vista no se pueden subir archivos. Describe la evidencia y dónde está.'; }
+        setStatus('#evid-status', msg, true);
+      }
+      renderArchivos();
+    }
+  }
+  function quitarArchivo(a) {
+    S.archivos = S.archivos.filter(function (x) { return x.id !== a.id; });
+    if (assetsApi) assetsApi.delete(a.id).catch(function () {});
+    tocarEvidencia(S.ficha.evidencia.split('; ').filter(function (x) { return x !== fragmento(a.nombre); }).join('; '));
+    setStatus('#evid-status', '');
+    renderArchivos();
+  }
+  function renderArchivos() {
+    var ul = $('#files'); if (!ul) return; ul.textContent = '';
+    S.archivos.forEach(function (a) {
+      ul.append(h('li', null,
+        h('a', { href: blobUrl(a.id) || '#', target: '_blank', rel: 'noopener', text: a.nombre }),
+        h('button', { type: 'button', 'aria-label': 'Quitar ' + a.nombre, text: 'Quitar', onclick: function () { quitarArchivo(a); } })));
+    });
+  }
+  function pintarAdjuntos() { $('#evid-actions').hidden = !assetsApi; $('#evid-note').hidden = !!assetsApi; }
+  function quienRegistra() {
+    var v = $('#por').value;
+    if (v === '__otra') {
+      var n = $('#por-nombre').value.trim();
+      return n ? { n: n, c: $('#por-cargo').value.trim(), a: $('#por-comp').value.trim() } : null;
+    }
+    return EQUIPO.filter(function (p) { return p.n === v; })[0] || null;
+  }
+  function pintarQuien() {
+    var otra = $('#por').value === '__otra', p = quienRegistra();
+    $('#por-otra').hidden = !otra;
+    $('#por-info').textContent = otra ? 'Escribe el nombre, el puesto y el componente de quien registra.' : (p ? p.c + ' · Componente: ' + p.a : '');
+  }
+
+  /* ---------- Criterios de la lista de revisión ---------- */
+  function criterios(f, hechoObs) {
+    var has = function (k) { return !!(f[k] && String(f[k]).trim()); };
+    return [
+      { ok: has('quePaso') && hechoObs !== false, label: 'Es un hecho observable, no una opinión' },
+      { ok: has('quien') && has('nivel'), label: 'Tiene actor, institución y nivel' },
+      { ok: has('queCambio'), label: 'Se distingue qué cambió respecto a antes' },
+      { ok: has('dimension') && has('direccion'), label: 'Tiene una sola dimensión y una dirección' },
+      { ok: has('contribucion'), label: 'La contribución del proyecto está explicada' },
+      { ok: has('evidencia'), label: 'La evidencia tiene enlace o archivo' },
+      { ok: has('certeza'), label: 'La certeza es honesta: alta, media o baja' },
+      { ok: has('cantidad'), label: 'Incluye un dato cuantitativo o dice «sin dato»' }
+    ];
+  }
+  function renderReview() {
+    var cs = criterios(S.ficha, S.hechoObs), ok = cs.filter(function (c) { return c.ok; }).length;
+    var ul = $('#review'); ul.textContent = '';
+    cs.forEach(function (c) { ul.append(h('li', { class: c.ok ? 'ok' : '' }, h('span', { class: 'mark', text: c.ok ? '✓' : '' }), c.label)); });
+    $('#rev-count').textContent = ok + ' de 8 criterios cumplidos';
+    $('#ring-num').textContent = ok + '/8';
+    $('#ring-val').setAttribute('stroke-dashoffset', String(RING * (1 - ok / 8)));
+    var al = $('#alerts');
+    var items = S.alertas.slice();
+    if (S.hechoObs === false) items.unshift('La narrativa parece una opinión más que un hecho. Describe qué se pudo ver, escuchar o leer.');
+    if (items.length) {
+      al.textContent = ''; al.append(h('strong', { text: 'Avisos del asistente' }), h('ul', null, items.map(function (a) { return h('li', { text: a }); }))); al.hidden = false;
+    } else { al.hidden = true; al.textContent = ''; }
+    var min = !!(S.ficha.quePaso && S.ficha.dimension && S.ficha.direccion);
+    var btn = $('#btn-save');
+    btn.disabled = !min || S.saving;
+    btn.textContent = ok === 8 ? 'Confirmar y guardar' : 'Guardar con ' + (8 - ok) + ' pendiente' + (8 - ok === 1 ? '' : 's');
+    if (!min) setStatus('#save-status', 'Para guardar se necesitan al menos: qué pasó, dimensión y dirección.');
+    else if (!S.saving) setStatus('#save-status', '');
+  }
+
+  /* ---------- Preguntas pendientes ---------- */
+  function pendingQs() {
+    if (!S.analizado) return [];
+    var out = [];
+    FIELDS.forEach(function (f) {
+      if (f.k === 'fechaHecho' || f.k === 'unidad' || f.k === 'fuente') return;
+      var e = S.estado[f.k];
+      if (e === 'falta' || e === 'inferido') {
+        var a = S.preguntas.filter(function (p) { return p && p.campo === f.k && p.pregunta; })[0];
+        out.push({ k: f.k, label: f.n ? f.n + '. ' + f.label : f.label, text: a ? String(a.pregunta) : f.q, inf: e === 'inferido' });
+      }
+    });
+    return out;
+  }
+  function renderQuestions() {
+    var host = $('#qs'); host.textContent = '';
+    var qs = pendingQs(), box = $('#resp-box');
+    renderSteps(qs.length);
+    if (!S.analizado) {
+      host.append(h('p', { class: 'empty', text: 'Primero cuenta la señal y pulsa «Estructurar ficha». Aquí aparecerán las preguntas para completar lo que falte.' }));
+      box.hidden = true; return;
+    }
+    box.hidden = false;
+    if (!qs.length) { host.append(h('p', { class: 'empty', text: 'No quedan preguntas. Revisa la ficha y confirma.' })); }
+    else {
+      var shown = qs.slice(0, 6);
+      host.append(h('p', { class: 'hint', style: 'margin-top:10px', text: shown.length + (qs.length > 6 ? ' de ' + qs.length : '') + ' pregunta' + (shown.length === 1 ? '' : 's') + ' para completar la ficha. Toca una para responderla:' }));
+      host.append(h('ul', { class: 'qlist' }, shown.map(function (q) {
+        var card = h('button', { class: 'q' + (q.inf ? ' inf' : ''), type: 'button', onclick: function () { responderA(q); } },
+          h('span', { class: 'qlabel', text: q.label + (q.inf ? ' · confirmar' : '') }),
+          h('span', { text: q.text }));
+        return h('li', { class: 'qrow' }, card,
+          tts ? h('button', { class: 'btn small', type: 'button', text: 'Escuchar', onclick: function () { speak([{ text: q.text, language: 'es' }]); } }) : null);
+      })));
+    }
+    $('#btn-listen-all').hidden = !(tts && qs.length);
+    $('#btn-listen-stop').hidden = !(tts && ttsState !== 'idle');
+  }
+  /* Tocar una pregunta deja lista la respuesta con el nombre del campo, para que el asistente sepa a qué se refiere. */
+  function responderA(q) {
+    var r = $('#resp'), pre = q.label.replace(/^\d+\.\s*/, '').replace(/[¿?]/g, '') + ': ';
+    if (r.value.indexOf(pre) < 0) r.value = (r.value.trim() ? r.value.replace(/\s+$/, '') + '\n' : '') + pre;
+    r.focus(); try { r.setSelectionRange(r.value.length, r.value.length); } catch (e) {}
+  }
+  function renderSteps(nq) {
+    var cur = !S.analizado ? 1 : (nq ? 2 : 3);
+    Array.prototype.forEach.call(document.querySelectorAll('#steps .stp'), function (b, i) {
+      if (i + 1 === cur) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      b.classList.toggle('done', i + 1 < cur);
+    });
+  }
+  function speak(lines) {
+    if (!tts) return;
+    tts.speak(lines, { language: 'es' }).catch(function (e) {
+      if (e && e.code === 'not_granted') { tts = null; renderQuestions(); }
+      else if (e && e.code !== 'stopped') flash('No se pudo leer en voz alta. Lee las preguntas en pantalla.', true);
+    });
+  }
+
+  /* ---------- Narrativa: pistas, conteo y borrador ---------- */
+  var draftTimer = null;
+  function updateNarr() {
+    var t = $('#narr').value, w = t.trim() ? t.trim().split(/\s+/).length : 0;
+    PISTAS.forEach(function (p) { p.el.classList.toggle('on', p.re.test(t)); });
+    $('#narr-count').textContent = w ? '· ' + w + ' palabra' + (w === 1 ? '' : 's') : '';
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(function () {
+      try { if (t.trim()) localStorage.setItem('senales-borrador', t); else localStorage.removeItem('senales-borrador'); } catch (e) {}
+    }, 500);
+  }
+
+  /* ---------- Dictado con el micrófono (si la vista lo permite) ---------- */
+  function paintMic() {
+    [['#mic-narr', 'narr'], ['#mic-resp', 'resp']].forEach(function (m) {
+      var b = $(m[0]), on = dictState !== 'idle', mine = on && dictTarget && dictTarget.id === m[1];
+      b.hidden = !dict;
+      b.disabled = on && !mine;
+      b.classList.toggle('rec', !!mine);
+      b.lastElementChild.textContent = mine ? (dictState === 'finishing' ? 'Terminando…' : 'Detener dictado') : 'Dictar';
+    });
+    if (dictState === 'idle') { $('#partial-narr').textContent = ''; $('#partial-resp').textContent = ''; }
+  }
+  function toggleDict(id) {
+    if (!dict) return;
+    if (dictState !== 'idle') { dict.stop().catch(function () {}); return; }
+    dictTarget = $('#' + id);
+    dict.start(dictLang ? { language: dictLang } : undefined).catch(function (e) {
+      var c = e && e.code;
+      if (c === 'not_granted') { dict = null; paintMic(); setStatus('#est-status', 'El dictado está desactivado para esta página. Escribe o usa el dictado de tu dispositivo.'); }
+      else if (c === 'unavailable') {
+        if (dictLang) { dictLang = ''; setStatus('#est-status', 'No pude iniciar el dictado en español. Pulsa «Dictar» otra vez.'); }
+        else { dict = null; paintMic(); setStatus('#est-status', 'El dictado no está disponible aquí. Escribe o usa el dictado de tu dispositivo.'); }
+      }
+      else if (c === 'rate_limited') setStatus('#est-status', 'Hay demasiados dictados a la vez. Espera un momento y vuelve a intentar.', true);
+      else if (c !== 'stopped' && c !== 'dismissed') setStatus('#est-status', 'No se pudo iniciar el dictado. Intenta de nuevo o escribe.', true);
+    });
+  }
+
+  /* ---------- Llamada a Claude ---------- */
+  function norm(k, v) {
+    if (v == null) return '';
+    v = String(v).trim();
+    if (!v) return '';
+    if (k === 'fechaHecho') { return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)) ? v : ''; }
+    if (ENUMS[k]) {
+      var low = v.toLowerCase(), hit = ENUMS[k].filter(function (o) { return o.toLowerCase() === low; })[0];
+      return hit || '';
+    }
+    if (k === 'unidad') { var lu = v.toLowerCase(); return UNIDADES.filter(function (o) { return o.toLowerCase() === lu; })[0] || v; }
+    return v;
+  }
+  function buildPrompt(text) {
+    var fijados = {};
+    KEYS.forEach(function (k) { if (S.touched[k] && S.ficha[k]) fijados[k] = S.ficha[k]; });
+    var hoy = new Date().toISOString().slice(0, 10);
+    return [
+      'Eres el asistente MEAL de un equipo de reducción de riesgo de desastres (RRD). Ayudas a registrar "señales de cambio" del sistema de gestión del riesgo. Una señal es un hecho observable que indica que algo cambió, a favor o en contra.',
+      'Recibes la narrativa de una persona del equipo. Puede venir de dictado por voz: corrige errores evidentes de transcripción sin cambiar el sentido. Devuelve la ficha estructurada.',
+      '',
+      'FECHA DE HOY: ' + hoy + ' (úsala solo para convertir fechas relativas como "ayer" o "esta semana").',
+      '',
+      'REGLAS',
+      '1. Usa SOLO lo que dice la narrativa. No inventes actores, fechas, cifras, documentos ni evidencia. Si algo no está, usa null.',
+      '2. quePaso y queCambio: de 1 a 3 frases, en lenguaje neutro y observable, sin opiniones. queCambio debe decir qué era distinto antes o qué se hace ahora que antes no se hacía.',
+      '3. quien: actor e institución. nivel: exactamente "Comunitario", "Municipal", "Departamental" o "Nacional".',
+      '4. dimension: exactamente una de: ' + DIMS.map(function (d) { return '"' + d + '"'; }).join(', ') + '. Guía: Políticas = norma, plan, ordenanza o política; Prácticas/metodologías = cómo se hace el trabajo, protocolos, herramientas; Flujos de recursos = presupuesto, dinero o recursos; Relaciones y conexiones = coordinación, mesas, alianzas; Dinámicas de poder = quién participa y quién decide; Modelos mentales = cómo se piensa o se habla del riesgo.',
+      '5. direccion: exactamente "Avance", "Retroceso" o "Neutro/incierto".',
+      '6. contribucion: exactamente "Directa", "Parcial" o "Ninguna (solo contexto)". Si la narrativa no dice qué hizo el proyecto, null. No lo supongas.',
+      '7. certeza: "Alta" (la persona lo vio directamente o hay documento), "Media" o "Baja" (se lo contaron, sin respaldo). Solo si hay base; si no, null.',
+      '8. evidencia: solo lo que la persona menciona (acta, foto, mensaje, testimonio). Nunca inventes enlaces.',
+      '9. profundizar: "Sí" solo si la narrativa sugiere una historia de cambio relevante; "No" si es claramente un hecho menor; si no hay base, null.',
+      '10. cantidad, unidad, fuente: solo cifras y fuentes que la persona dijo. Si dice que no tiene el dato, cantidad = "sin dato".',
+      '11. fechaHecho: formato YYYY-MM-DD solo si la narrativa permite saberla; si no, null.',
+      '12. estado: para cada campo, "narrativa" (dicho de forma explícita), "inferido" (lo dedujiste; la persona debe confirmarlo) o "falta" (null).',
+      '13. hechoObservable: false si lo central es una opinión, intención o valoración y no un hecho que se pudo ver, escuchar o leer.',
+      '14. alertas: hasta 3 avisos breves de calidad (varios hechos mezclados, opinión en lugar de hecho, falta de actor).',
+      '15. preguntas: una pregunta breve, concreta y abierta por cada campo con estado "falta" o "inferido", en el orden de la ficha, de lo más importante a lo menos; máximo 6. Redáctalas al estilo de preguntas generadoras, por ejemplo: "¿Qué era distinto antes?", "¿Qué hizo el proyecto para que esto ocurriera?", "¿Qué documento o testimonio lo comprueba?". Para los campos "inferido", pide confirmar. No preguntes por unidad ni fuente.',
+      '16. justificacion: una frase corta que explique dimension, direccion, contribucion y certeza cuando no sean null.',
+      '',
+      'CAMPOS YA FIJADOS POR LA PERSONA (no los cambies ni los contradigas): ' + JSON.stringify(fijados),
+      '',
+      'FORMATO: responde SOLO un objeto JSON, sin texto antes ni después, con estas claves:',
+      '{"quePaso":null,"fechaHecho":null,"quien":null,"nivel":null,"queCambio":null,"dimension":null,"direccion":null,"contribucion":null,"evidencia":null,"certeza":null,"profundizar":null,"cantidad":null,"unidad":null,"fuente":null,"estado":{"quePaso":"narrativa"},"justificacion":{"dimension":"...","direccion":"...","contribucion":"...","certeza":"..."},"hechoObservable":true,"alertas":[],"preguntas":[{"campo":"queCambio","pregunta":"..."}]}',
+      '',
+      'NARRATIVA:',
+      '"""',
+      text.slice(0, 12000),
+      '"""'
+    ].join('\n');
+  }
+  function errCopy(e) {
+    var c = e && e.code;
+    if (c === 'cancelled') return null;
+    if (c === 'not_granted') return 'No diste permiso a la página para usar Claude. Recarga, acepta el aviso y vuelve a intentar, o usa el modo manual.';
+    if (c === 'sampling_disabled' || c === 'not_declared' || c === 'capability_disabled' || c === 'capability_removed') return 'No se pudo usar Claude en esta vista. Abre la página en el navegador o usa el modo manual.';
+    if (c === 'rate_limited') return 'Se alcanzó el límite de uso por ahora. Espera un momento y vuelve a intentar.';
+    if (c === 'session_expired') return 'Tu sesión venció. Vuelve a iniciar sesión en Claude y recarga la página.';
+    if (c === 'invalid_json') return 'No pude estructurar la respuesta. Pulsa de nuevo «Estructurar ficha» o acorta la narrativa.';
+    if (c === 'refused') return 'Claude no pudo procesar esta narrativa. Revisa el texto e intenta de nuevo.';
+    return 'Ocurrió un problema al estructurar. Intenta de nuevo.';
+  }
+  function setBusy(b) {
+    S.busy = b;
+    $('#btn-est').disabled = b; $('#btn-resp').disabled = b;
+    $('#btn-stop').hidden = !b;
+    $('#dots').hidden = !b;
+  }
+  async function estructurar() {
+    if (S.busy) return;
+    var text = $('#narr').value.trim();
+    if (text.length < 25) { setStatus('#est-status', 'Escribe o dicta una narrativa un poco más completa para poder estructurarla.', true); return; }
+    if (!sampleApi) { showNoClaude(); setStatus('#est-status', 'El asistente no está disponible aquí. Abre la página en el navegador o usa el modo manual.'); return; }
+    S.ctl = new AbortController(); setBusy(true);
+    setStatus('#est-status', 'Pensando… puede tardar unos segundos.');
+    try {
+      var r = await sampleApi.json(buildPrompt(text), { modelTier: 'default', cache: false, signal: S.ctl.signal });
+      if (!r || typeof r !== 'object' || Array.isArray(r)) throw { code: 'invalid_json' };
+      aplicar(r);
+      setStatus('#est-status', 'Ficha propuesta. Revisa cada campo y responde lo que falte.');
+    } catch (e) {
+      var m = errCopy(e);
+      if (m) setStatus('#est-status', m, true); else setStatus('#est-status', 'Detenido.');
+      if (e && e.code && /^(not_granted|sampling_disabled|not_declared|capability_disabled|capability_removed)$/.test(e.code)) { sampleApi = null; showNoClaude(); }
+    } finally { setBusy(false); S.ctl = null; }
+  }
+  function aplicar(r) {
+    var antes = {}; KEYS.forEach(function (k) { antes[k] = S.ficha[k]; });
+    S.analizado = true;
+    S.hechoObs = r.hechoObservable === false ? false : true;
+    S.alertas = Array.isArray(r.alertas) ? r.alertas.slice(0, 3).map(String) : [];
+    S.preguntas = Array.isArray(r.preguntas) ? r.preguntas : [];
+    S.just = (r.justificacion && typeof r.justificacion === 'object') ? r.justificacion : {};
+    var est = (r.estado && typeof r.estado === 'object') ? r.estado : {};
+    FIELDS.forEach(function (f) {
+      var k = f.k;
+      if (S.touched[k] && S.ficha[k]) return;
+      var v = norm(k, r[k]);
+      S.ficha[k] = v;
+      S.estado[k] = v ? (est[k] === 'inferido' ? 'inferido' : 'narrativa') : 'falta';
+      if (!v) S.touched[k] = false;
+    });
+    paintAll();
+    /* Resalta, uno tras otro, los campos que el asistente acaba de llenar. */
+    var i = 0;
+    KEYS.forEach(function (k) {
+      if (!S.ficha[k] || S.ficha[k] === antes[k]) return;
+      var el = ui[k].field; el.classList.remove('lit'); void el.offsetWidth;
+      el.style.animationDelay = (i++ * 80) + 'ms'; el.classList.add('lit');
+    });
+  }
+
+  /* ---------- Modo manual (cuando la vista no permite llamar a Claude) ---------- */
+  function showNoClaude() { $('#no-claude').hidden = false; }
+  async function copiarPeticion() {
+    var text = $('#narr').value.trim();
+    if (text.length < 25) { setStatus('#manual-status', 'Escribe o dicta primero la narrativa, con un poco más de detalle.', true); return; }
+    var p = buildPrompt(text);
+    try {
+      await navigator.clipboard.writeText(p);
+      setStatus('#manual-status', 'Petición copiada. Pégala en un chat con Claude.');
+    } catch (e) {
+      var box = $('#manual-prompt'); box.hidden = false; box.value = p; box.focus(); box.select();
+      setStatus('#manual-status', 'No pude copiar automáticamente. La petición quedó seleccionada arriba: cópiala con Ctrl + C.');
+    }
+  }
+  function aplicarManual() {
+    var raw = $('#manual-resp').value, i = raw.indexOf('{'), j = raw.lastIndexOf('}');
+    if (i < 0 || j <= i) { setStatus('#manual-status', 'No encontré una respuesta en formato JSON. Pega la respuesta completa de Claude.', true); return; }
+    try {
+      var r = JSON.parse(raw.slice(i, j + 1));
+      if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Error('forma');
+      aplicar(r);
+      $('#manual-resp').value = '';
+      setStatus('#manual-status', 'Ficha actualizada. Revisa cada campo y responde lo que falte.');
+    } catch (e) {
+      setStatus('#manual-status', 'La respuesta no es un JSON válido. Pídele a Claude que responda solo con el JSON.', true);
+    }
+  }
+
+  /* ---------- Guardar ---------- */
+  function registroActual() {
+    var rec = {};
+    KEYS.forEach(function (k) { rec[k] = S.ficha[k] || ''; });
+    rec.narrativa = $('#narr').value.trim();
+    rec.hechoObservable = S.hechoObs !== false;
+    rec.estado = JSON.parse(JSON.stringify(S.estado));
+    rec.createdAt = Date.now();
+    rec.createdBy = uid || null;
+    var p = quienRegistra();
+    rec.registradoPor = p ? p.n : '';
+    rec.registradoCargo = p ? p.c : '';
+    rec.registradoComponente = p ? p.a : '';
+    rec.archivos = S.archivos.map(function (a) { return { id: a.id, nombre: a.nombre, tipo: a.tipo }; });
+    return rec;
+  }
+  async function guardar() {
+    if (S.saving) return;
+    var rec = registroActual();
+    if (!(rec.quePaso && rec.dimension && rec.direccion)) return;
+    S.saving = true; renderReview(); setStatus('#save-status', 'Guardando…');
+    try {
+      await enviarAFlujo(rec);
+      rec.id = 'local-' + Date.now(); localRecords.unshift(rec); renderRecords();
+      flash('Señal enviada al registro de Resurgir en SharePoint.');
+      limpiar(true);
+      try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    } catch (e) {
+      var c = e && e.code, msg = 'No se pudo enviar el registro. Revisa tu conexión a internet e intenta de nuevo; la ficha sigue aquí.';
+      if (c === 'invalid_argument') msg = 'No tienes permiso para guardar en el registro compartido. Se necesita el rol de Colaborador o superior.';
+      else if (c === 'quota_exceeded') msg = 'El registro compartido está lleno. Avisa a quien administra la página.';
+      else if (c === 'revoked') msg = 'Tu acceso al registro cambió. Recarga la página.';
+      setStatus('#save-status', msg, true);
+    } finally { S.saving = false; renderReview(); }
+  }
+  function limpiar(keepStatus) {
+    resetState(); $('#narr').value = ''; $('#resp').value = '';
+    if (!keepStatus) setStatus('#save-status', '');
+    setStatus('#est-status', '');
+    updateNarr();
+    paintAll();
+  }
+
+  /* ---------- Registros ---------- */
+  function fmtDate(ms) { try { return new Date(ms).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; } }
+  function fmtISO(s) { if (!s) return ''; var d = new Date(s + 'T12:00:00'); return isNaN(d) ? s : d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  function allRecords() { return dbApi ? records : localRecords; }
+  function dirClass(d) { return d === 'Avance' ? 'avance' : d === 'Retroceso' ? 'retro' : d ? 'neutro' : ''; }
+  function coincide(r) {
+    if (F.dim && r.dimension !== F.dim) return false;
+    if (F.dir && r.direccion !== F.dir) return false;
+    if (F.q) {
+      var hay = [r.quePaso, r.quien, r.queCambio, r.evidencia, r.narrativa, r.registradoPor, r.registradoComponente].filter(Boolean).join(' ').toLowerCase();
+      if (hay.indexOf(F.q) < 0) return false;
+    }
+    return true;
+  }
+  function renderResumen(list) {
+    var host = $('#resumen'); host.textContent = '';
+    host.hidden = !list.length; $('#filtros').hidden = !list.length;
+    if (!list.length) return;
+    var nDir = {}, nDim = {}, max = 1;
+    list.forEach(function (r) { nDir[r.direccion] = (nDir[r.direccion] || 0) + 1; nDim[r.dimension] = (nDim[r.dimension] || 0) + 1; });
+    DIMS.forEach(function (d) { max = Math.max(max, nDim[d] || 0); });
+    host.append(
+      h('div', null, h('div', { class: 'rtitle', text: 'Dirección del cambio' }),
+        h('div', { class: 'dirs' }, ENUMS.direccion.map(function (d) {
+          return h('button', { class: 'dirbtn ' + dirClass(d), type: 'button', 'aria-pressed': String(F.dir === d), onclick: function () { F.dir = F.dir === d ? '' : d; renderRecords(); } },
+            h('b', { text: String(nDir[d] || 0) }), h('span', { text: d }));
+        }))),
+      h('div', null, h('div', { class: 'rtitle', text: 'Señales por dimensión' }),
+        h('div', { class: 'dims' }, DIMS.map(function (d) {
+          var n = nDim[d] || 0;
+          return h('button', { class: 'dimbar', type: 'button', 'aria-pressed': String(F.dim === d), onclick: function () { F.dim = F.dim === d ? '' : d; renderRecords(); } },
+            h('span', { text: d }), h('span', { class: 'trk' }, h('span', { class: 'fill', style: 'width:' + (n / max * 100) + '%' })), h('span', { class: 'n', text: String(n) }));
+        }))));
+  }
+  function renderRecords() {
+    var all = allRecords(), list = all.filter(coincide), host = $('#reclist'); host.textContent = '';
+    $('#count').textContent = all.length ? '(' + all.length + ')' : '';
+    $('#btn-csv').disabled = !all.length;
+    $('#regs-hint').textContent = 'Aquí ves lo que enviaste desde este dispositivo en esta sesión. El registro completo del equipo está en el Excel «Registros senales de cambio», en Teams: TM-RESURGIR › General › MEAL › Registros asistente.';
+    if (dbApi && !loadedOnce && !dbErr) setStatus('#regs-status', 'Cargando registros…');
+    else if (dbErr) setStatus('#regs-status', 'No se pudo leer el registro compartido (' + dbErr + ').', true);
+    else setStatus('#regs-status', '');
+    renderResumen(all);
+    var filtrando = !!(F.q || F.dim || F.dir);
+    $('#btn-nofiltro').hidden = !filtrando;
+    $('#filtro-info').textContent = filtrando ? 'Mostrando ' + list.length + ' de ' + all.length + '. El CSV descarga todas.' : '';
+    if (!all.length) {
+      if (loadedOnce || !dbApi) host.append(h('p', { class: 'empty', text: 'Aún no hay señales guardadas. Cuenta una en «Nueva señal» y confirma la ficha para verla aquí.' }));
+      return;
+    }
+    if (!list.length) { host.append(h('p', { class: 'empty', text: 'Ninguna señal coincide con el filtro. Quita los filtros para verlas todas.' })); return; }
+    list.forEach(function (r) {
+      var cs = criterios(r, r.hechoObservable), ok = cs.filter(function (c) { return c.ok; }).length;
+      var open = false;
+      var what = h('p', { class: 'what', text: r.quePaso || '' });
+      var det = h('dl', { class: 'det', hidden: true });
+      var rows = [['Fecha del hecho', fmtISO(r.fechaHecho)], ['¿Quién actuó?', [r.quien, r.nivel].filter(Boolean).join(' · ')], ['¿Qué cambió?', r.queCambio], ['Contribución', r.contribucion],
+        ['Evidencia', r.evidencia], ['Certeza', r.certeza], ['Para profundizar', r.profundizar], ['Dato cuantitativo', [r.cantidad, r.unidad, r.fuente ? '(' + r.fuente + ')' : ''].filter(Boolean).join(' ')], ['Narrativa original', r.narrativa]];
+      rows.forEach(function (x) { if (x[1]) { det.append(h('dt', { text: x[0] }), h('dd', { text: x[1] })); } });
+      var arch = Array.isArray(r.archivos) ? r.archivos.filter(function (a) { return a && blobUrl(a.id); }) : [];
+      if (arch.length) det.append(h('dt', { text: 'Archivos' }), h('dd', null, arch.map(function (a, i) {
+        return h('a', { class: 'flink', href: blobUrl(a.id), target: '_blank', rel: 'noopener', text: String(a.nombre || 'Archivo ' + (i + 1)) });
+      })));
+      var card = h('article', { class: 'card rec' });
+      var toggle = h('button', { class: 'btn small', type: 'button', text: 'Ver ficha' });
+      toggle.addEventListener('click', function () { open = !open; det.hidden = !open; card.classList.toggle('open', open); toggle.textContent = open ? 'Ocultar ficha' : 'Ver ficha'; });
+      var actions = h('div', { class: 'actions', style: 'margin-top:0' }, toggle);
+      var canDel = false; /* lo enviado ya está en el Excel; se corrige allí */
+      if (canDel) {
+        var del = h('button', { class: 'btn small danger', type: 'button', text: 'Eliminar' }), armed = false;
+        del.addEventListener('click', async function () {
+          if (!armed) { armed = true; del.textContent = 'Confirmar eliminación'; setTimeout(function () { armed = false; del.textContent = 'Eliminar'; }, 4000); return; }
+          try {
+            if (r.id.indexOf('local-') === 0) { localRecords = localRecords.filter(function (x) { return x.id !== r.id; }); renderRecords(); }
+            else await dbApi.collection('senales').doc(r.id).delete();
+          } catch (e) { setStatus('#regs-status', 'No se pudo eliminar este registro.', true); }
+        });
+        actions.append(del);
+      }
+      card.append(
+        h('div', { class: 'rec-top' },
+          h('div', { class: 'tags' }, r.dimension ? h('span', { class: 'tag', text: r.dimension }) : null, r.direccion ? h('span', { class: 'tag ' + dirClass(r.direccion), text: r.direccion }) : null, r.certeza ? h('span', { class: 'tag', text: 'Certeza ' + r.certeza.toLowerCase() }) : null),
+          h('span', { class: 'meta', text: ok + ' de 8 criterios' })),
+        what, det,
+        h('div', { class: 'meta' }, h('span', { text: 'Guardada el ' + fmtDate(r.createdAt) }), r.registradoPor ? h('span', { text: 'Por ' + r.registradoPor + (r.registradoComponente ? ' · ' + r.registradoComponente : '') }) : null,
+          arch.length ? h('span', { text: arch.length + ' archivo' + (arch.length === 1 ? '' : 's') }) : null),
+        actions);
+      host.append(card);
+    });
+  }
+  function csvCell(v) { v = v == null ? '' : String(v); return /[",\r\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  async function descargar() {
+    var list = allRecords(); if (!list.length) return;
+    var head = ['Fecha del hecho', 'Guardada el', 'Registrada por', 'Cargo', 'Componente', '¿Qué pasó?', '¿Quién actuó?', 'Nivel', '¿Qué cambió?', 'Dimensión', 'Dirección', 'Contribución del proyecto', 'Evidencia', 'Archivos de evidencia', 'Certeza', 'Para profundizar', 'Cantidad', 'Unidad', 'Fuente del dato', 'Criterios cumplidos (de 8)', 'Narrativa original'];
+    var lines = [head.map(csvCell).join(',')];
+    list.slice().reverse().forEach(function (r) {
+      var ok = criterios(r, r.hechoObservable).filter(function (c) { return c.ok; }).length;
+      var links = (Array.isArray(r.archivos) ? r.archivos : []).map(function (a) { var u = a && blobUrl(a.id); return u ? location.origin + u : ''; }).filter(Boolean).join(' ');
+      lines.push([r.fechaHecho, new Date(r.createdAt).toISOString().slice(0, 10), r.registradoPor, r.registradoCargo, r.registradoComponente, r.quePaso, r.quien, r.nivel, r.queCambio, r.dimension, r.direccion, r.contribucion, r.evidencia, links, r.certeza, r.profundizar, r.cantidad, r.unidad, r.fuente, ok, r.narrativa].map(csvCell).join(','));
+    });
+    var data = '﻿sep=,\r\n' + lines.join('\r\n');
+    var nombreCsv = 'senales-de-cambio-' + new Date().toISOString().slice(0, 10) + '.csv';
+    if (!dlApi) {
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'text/csv;charset=utf-8' })); a.download = nombreCsv;
+      document.body.append(a); a.click(); a.remove(); setStatus('#regs-status', 'Archivo listo.'); return;
+    }
+    try { await dlApi.save({ filename: nombreCsv, data: data }); setStatus('#regs-status', 'Archivo listo.'); }
+    catch (e) { if (e && e.code !== 'declined') setStatus('#regs-status', 'No se pudo descargar el archivo en esta vista.', true); }
+  }
+
+  /* ---------- Interfaz ---------- */
+  function showTab(which) {
+    var nueva = which === 'nueva';
+    $('#vista-nueva').hidden = !nueva; $('#vista-regs').hidden = nueva;
+    $('#steps').hidden = !nueva;
+    $('#tab-nueva').setAttribute('aria-selected', String(nueva)); $('#tab-regs').setAttribute('aria-selected', String(!nueva));
+  }
+  PISTAS.forEach(function (p) { p.el = h('span', { class: 'pista', text: p.t }); $('#pistas').append(p.el); });
+  buildFicha(); paintAll(); renderRecords();
+  EQUIPO.forEach(function (p) { $('#por').append(h('option', { value: p.n, text: p.n })); });
+  $('#por').append(h('option', { value: '__otra', text: 'Otra persona…' }));
+  try {
+    $('#por').value = localStorage.getItem('senales-por') || '';
+    var po = JSON.parse(localStorage.getItem('senales-por-otra') || '{}') || {};
+    $('#por-nombre').value = po.n || ''; $('#por-cargo').value = po.c || ''; $('#por-comp').value = po.a || '';
+  } catch (e) {}
+  ['#por-nombre', '#por-cargo', '#por-comp'].forEach(function (s) {
+    $(s).addEventListener('change', function () {
+      try { localStorage.setItem('senales-por-otra', JSON.stringify({ n: $('#por-nombre').value.trim(), c: $('#por-cargo').value.trim(), a: $('#por-comp').value.trim() })); } catch (e) {}
+    });
+  });
+  pintarQuien(); pintarAdjuntos();
+  try {
+    var borrador = localStorage.getItem('senales-borrador');
+    if (borrador && !$('#narr').value) { $('#narr').value = borrador; flash('Recuperé la narrativa que dejaste sin guardar.'); }
+  } catch (e) {}
+  updateNarr();
+  $('#narr').addEventListener('input', updateNarr);
+  $('#por').addEventListener('change', function () { pintarQuien(); if ($('#por').value === '__otra') $('#por-nombre').focus(); try { localStorage.setItem('senales-por', $('#por').value.trim()); } catch (e) {} });
+  $('#gate-form').addEventListener('submit', function (e) { e.preventDefault(); probarClave($('#gate-key').value); });
+  try { var k0 = sessionStorage.getItem('senales-clave'); if (k0) probarClave(k0, true); } catch (e) {}
+  $('#tab-nueva').addEventListener('click', function () { showTab('nueva'); });
+  $('#tab-regs').addEventListener('click', function () { showTab('regs'); });
+  Array.prototype.forEach.call(document.querySelectorAll('#steps .stp'), function (b) {
+    b.addEventListener('click', function () { try { $('#' + b.getAttribute('data-go')).scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} });
+  });
+  $('#btn-est').addEventListener('click', estructurar);
+  $('#btn-stop').addEventListener('click', function () { if (S.ctl) S.ctl.abort(); });
+  $('#btn-ej').addEventListener('click', function () { $('#narr').value = EJEMPLO; updateNarr(); setStatus('#est-status', 'Ejemplo ficticio cargado. Pulsa «Estructurar ficha».'); });
+  $('#btn-clear').addEventListener('click', function () {
+    /* Los archivos adjuntos a una ficha que se descarta no quedan guardados. */
+    S.archivos.forEach(function (a) { if (assetsApi) assetsApi.delete(a.id).catch(function () {}); });
+    setStatus('#evid-status', '');
+    limpiar(false);
+  });
+  $('#btn-save').addEventListener('click', guardar);
+  $('#btn-csv').addEventListener('click', descargar);
+  $('#btn-resp').addEventListener('click', function () {
+    var r = $('#resp').value.trim();
+    if (!r) { setStatus('#est-status', 'Escribe o dicta tu respuesta antes de actualizar.', true); return; }
+    var n = $('#narr'); n.value = n.value.trim() + '\n\nAclaración: ' + r; $('#resp').value = '';
+    updateNarr();
+    estructurar();
+  });
+  $('#btn-listen-all').addEventListener('click', function () {
+    speak(pendingQs().slice(0, 6).map(function (q, i) { return { text: q.text, language: 'es', id: 'q' + i }; }));
+  });
+  $('#btn-listen-stop').addEventListener('click', function () { if (tts) tts.stop().catch(function () {}); });
+  $('#mic-narr').addEventListener('click', function () { toggleDict('narr'); });
+  $('#mic-resp').addEventListener('click', function () { toggleDict('resp'); });
+  $('#buscar').addEventListener('input', function () { F.q = $('#buscar').value.trim().toLowerCase(); renderRecords(); });
+  $('#btn-nofiltro').addEventListener('click', function () { F.q = ''; F.dim = ''; F.dir = ''; $('#buscar').value = ''; renderRecords(); });
+
+  /* ---------- Capacidades ---------- */
+  use('sample').then(function (s) { sampleApi = s; if (!s) showNoClaude(); });
+  $('#btn-copy').addEventListener('click', copiarPeticion);
+  $('#btn-apply').addEventListener('click', aplicarManual);
+  use('downloads').then(function (d) { dlApi = d; renderRecords(); });
+  use('assets').then(function (a) { assetsApi = a; pintarAdjuntos(); });
+  use('tts').then(function (t) {
+    tts = t; if (!t) return;
+    t.onState(function (e) { ttsState = e.state; renderQuestions(); });
+    renderQuestions();
+  });
+  use('dictation').then(function (d) {
+    dict = d; if (!d) return;
+    d.onState(function (e) { dictState = e.state; paintMic(); });
+    d.onPartial(function (e) { if (dictTarget) $('#partial-' + dictTarget.id).textContent = e.text ? 'Escuchando: ' + e.text : ''; });
+    d.onFinal(function (e) {
+      var t = dictTarget; if (!t || !e.text) return;
+      t.value += t.value ? e.text : e.text.replace(/^\s+/, '');
+      if (t.id === 'narr') updateNarr();
+    });
+    paintMic();
+  });
+  (async function () {
+    try { userApi = await use('user'); uid = userApi ? await userApi.id() : null; } catch (e) {}
+    try { dbApi = await use('db'); } catch (e) { dbApi = null; }
+    renderRecords();
+    if (!dbApi) return;
+    var timer = setTimeout(function () { if (!loadedOnce) setStatus('#regs-status', 'Aún no se puede conectar con el registro compartido. Los datos mostrados pueden estar desactualizados.', true); }, 10000);
+    dbApi.collection('senales').orderBy('createdAt', 'desc').limit(300).onSnapshot(function (snap) {
+      records = snap.docs.map(function (d) { var x = Object.assign({}, d.data()); x.id = d.id; return x; });
+      if (!snap.metadata.fromCache) { loadedOnce = true; clearTimeout(timer); } else if (snap.docs.length) { loadedOnce = true; }
+      dbErr = ''; renderRecords();
+    }, function (err) { loadedOnce = true; clearTimeout(timer); dbErr = (err && err.code) || 'error'; renderRecords(); });
+  })();
+})();
+</script>
+
+</body></html>
