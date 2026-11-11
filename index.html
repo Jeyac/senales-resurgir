@@ -237,6 +237,17 @@ a.btn { text-decoration: none; }
 .callout details { margin-top: 0; }
 .callout textarea { background: var(--surface); }
 
+.drop { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; border: 2px dashed var(--line); border-radius: 12px; padding: 12px 14px; color: var(--muted); font-size: 13.5px; }
+.drop.sobre { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.lote-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; }
+.lote-lista li { display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--surface); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.lote-lista li span { min-width: 0; overflow-wrap: anywhere; }
+.div-hint { margin-top: 8px; background: var(--warn-soft); border-radius: 10px; padding: 8px 12px; font-size: 13.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.modal { position: fixed; inset: 0; z-index: 40; background: rgba(10, 20, 34, .55); display: grid; place-items: center; padding: 16px; }
+.modal-box { background: var(--surface); color: var(--ink); border-radius: 16px; width: min(980px, 100%); max-height: 92vh; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+.modal-head, .modal-foot { padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.modal-foot { border-bottom: 0; border-top: 1px solid var(--line); }
+.modal-body { overflow: auto; padding: 16px; background: #fff; color: #1a1a1a; }
 .lote { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding: 8px 10px; background: var(--accent-soft); border-radius: 10px; }
 .lote select { width: auto; background: var(--surface); }
 .gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 16px; }
@@ -276,6 +287,20 @@ a.btn { text-decoration: none; }
   <option value="Testimonio"></option>
   <option value="Observación directa"></option>
 </datalist>
+
+<div class="modal" id="modal-informe" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="inf-titulo">
+    <div class="modal-head"><h2 id="inf-titulo">Informe generado</h2><button class="btn small" id="inf-cerrar" type="button">Cerrar</button></div>
+    <div class="modal-body" id="inf-cuerpo"></div>
+    <div class="modal-foot">
+      <span class="hint" id="inf-estado">Revisa el informe: las valoraciones son automáticas y deben validarse.</span>
+      <div class="actions" style="margin-top:0">
+        <button class="btn" id="inf-word" type="button">Descargar Word</button>
+        <button class="btn primary" id="inf-guardar" type="button">Guardar en SharePoint y en el Excel</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="gate" id="gate">
   <form class="card" id="gate-form">
@@ -334,6 +359,8 @@ a.btn { text-decoration: none; }
             </select>
             <span class="hint" id="lote-info"></span>
             <button class="btn small danger" id="btn-lote-clear" type="button" hidden>Descartar las que ya están listas</button>
+            <button class="btn small" id="btn-unir" type="button" hidden>Unir de nuevo en una sola señal</button>
+            <ul class="lote-lista" id="lote-lista" hidden></ul>
           </div>
           <div class="narr-top">
             <label for="narr" class="hint">Narrativa <span id="narr-count"></span></label>
@@ -342,6 +369,7 @@ a.btn { text-decoration: none; }
           <textarea id="narr" rows="8" placeholder="Pulsa aquí y dicta o escribe lo que pasó, con tus propias palabras."></textarea>
           <p class="partial" id="partial-narr" aria-live="off"></p>
           <div class="pistas" id="pistas" title="Guía orientativa: se enciende según las palabras de tu relato."><span class="ptitle">Tu relato ya menciona:</span></div>
+          <div class="div-hint" id="div-hint" hidden><span id="div-hint-txt"></span><button class="btn small" id="btn-dividir" type="button">Dividir ahora</button></div>
           <details>
             <summary>¿Cómo dicto con la voz?</summary>
             <ul>
@@ -444,6 +472,10 @@ a.btn { text-decoration: none; }
           </div>
           <p class="hint" id="por-info" style="margin-top:6px"></p>
           <p class="status" id="save-status" role="status" aria-live="polite"></p>
+          <div class="actions" style="margin-top:4px">
+            <button class="btn" id="btn-informe" type="button">Generar informe de análisis</button>
+            <span class="hint">Arma un informe con la estructura del análisis de San Jacinto, a partir de las señales de esta entrada.</span>
+          </div>
         </div>
       </div>
     </div>
@@ -498,12 +530,90 @@ a.btn { text-decoration: none; }
      Devuelve la misma forma de respuesta que daba el asistente, así el resto de la lógica no cambia. */
   function sinTildes(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function iso(d) { var p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+
+  /* ---------- Diccionario del proyecto: siglas, lugares y tildes frecuentes ----------
+     Corrige cómo llegan del dictado o de lo escrito rápido: «u gam» → UGAM, «jocotan» → Jocotán, «reunion» → reunión. */
+  var MUNICIPIOS = ['Chiquimula', 'San José La Arada', 'San Juan Ermita', 'Jocotán', 'Camotán', 'Olopa', 'Esquipulas', 'Concepción Las Minas', 'Quezaltepeque', 'San Jacinto', 'Ipala'];
+  function patron(s) {
+    return s.replace(/[aá]/g, '[aá]').replace(/[eé]/g, '[eé]').replace(/[ií]/g, '[ií]').replace(/[oó]/g, '[oó]').replace(/[uú]/g, '[uúü]').replace(/ /g, '[\\s-]+');
+  }
+  var SIGLAS = ['MAGA', 'UGAM', 'CUNORI', 'USAC', 'COCODE', 'COMUDE', 'CODEDE', 'COLRED', 'COMRED', 'CODRED', 'CONRED', 'MSPAS', 'MINEDUC', 'SESAN', 'SEGEPLAN',
+    'INSIVUMEH', 'MARN', 'MIDES', 'INAB', 'CONAP', 'PNC', 'DMM', 'DMP', 'OMM', 'OMAS', 'DAFIM', 'OMPNA', 'CRS', 'ONG', 'COE', 'INTECAP', 'RENAP', 'ICTA', 'FAO',
+    'UNICEF', 'PNUD', 'POA', 'MEAL', 'RRD', 'GIRD', 'IGE', 'MACP', 'MTA', 'COAPED', 'RCGIRD', 'MINGOB', 'MICIVI', 'CODISRA', 'SOSEP', 'MAGA'];
+  var DICCIONARIO = [
+    [/\bu\.?\s?g\.?\s?a\.?\s?m\b/gi, 'UGAM'], [/\bcu\s?n\s?ori\b|\bcunor[ií]\b/gi, 'CUNORI'], [/\bco\s?co\s?de?s?\b/gi, 'COCODE'],
+    [/\bcol\s?red(?:e?s)?\b/gi, 'COLRED'], [/\bcom\s?red(?:e?s)?\b/gi, 'COMRED'], [/\bcod\s?red\b/gi, 'CODRED'], [/\bse[\s-]+conred\b/gi, 'SE-CONRED'],
+    [/\bms\s?pas\b/gi, 'MSPAS'], [/\bim[\s-]?gird\b/gi, 'IM-GIRD'], [/\bm[\s-]rrd\b/gi, 'M-RRD'], [/\bcomudes\b/gi, 'COMUDE'], [/\bongs\b/gi, 'ONG'],
+    [/\bch[\s']?ort[ií]'?(?=\W|$)/gi, "Ch'orti'"], [/\bcop[aá]n\s?ch[\s']?ort[ií]'?(?=\W|$)/gi, "Copanch'orti'"], [/\bc[aá]ritas\b/gi, 'Cáritas'],
+    [/\bproyecto resurgir\b/gi, 'proyecto RESURGIR'], [/\bquetzaltepeque\b/gi, 'Quezaltepeque'], [/\bcontrato a\b/g, 'contrató a'], [/\bcontrataron a\b/g, 'contrataron a']
+  ];
+  SIGLAS.forEach(function (s) { DICCIONARIO.push([new RegExp('\\b' + s + '\\b', 'gi'), s]); });
+  MUNICIPIOS.concat(['Guatemala', 'Zacapa', 'Jalapa', 'El Progreso']).forEach(function (n) { DICCIONARIO.push([new RegExp('\\b' + patron(n.toLowerCase()) + '\\b', 'gi'), n]); });
+  var TILDES = { tambien: 'también', despues: 'después', ademas: 'además', aqui: 'aquí', alli: 'allí', ahi: 'ahí', asi: 'así', todavia: 'todavía', dia: 'día', dias: 'días',
+    alcaldia: 'alcaldía', alcaldias: 'alcaldías', policia: 'policía', metodologia: 'metodología', metodologias: 'metodologías', sequia: 'sequía', guia: 'guía', guias: 'guías',
+    mayoria: 'mayoría', comite: 'comité', comites: 'comités', tecnico: 'técnico', tecnicos: 'técnicos', tecnica: 'técnica', tecnicas: 'técnicas', basico: 'básico', basica: 'básica',
+    economico: 'económico', economica: 'económica', politica: 'política', politicas: 'políticas', numero: 'número', numeros: 'números', telefono: 'teléfono', area: 'área', areas: 'áreas',
+    ultimo: 'último', ultima: 'última', proximo: 'próximo', proxima: 'próxima', facil: 'fácil', dificil: 'difícil', unico: 'único', unica: 'única', jovenes: 'jóvenes', lideres: 'líderes',
+    lideresas: 'lideresas', pais: 'país', credito: 'crédito', practicas: 'prácticas', academico: 'académico', modulo: 'módulo', modulos: 'módulos', diagnostico: 'diagnóstico',
+    hectareas: 'hectáreas', kilometros: 'kilómetros', pluviometro: 'pluviómetro', pluviometros: 'pluviómetros', boletin: 'boletín', realizo: 'realizó', aprobo: 'aprobó', firmo: 'firmó', participo: 'participó', organizo: 'organizó', asigno: 'asignó',
+    conformo: 'conformó', presento: 'presentó', entrego: 'entregó', capacito: 'capacitó', acompaño: 'acompañó', convoco: 'convocó', decidio: 'decidió',
+    recibio: 'recibió', asumio: 'asumió', invirtio: 'invirtió', comprometio: 'comprometió', habia: 'había', habian: 'habían', papeleria: 'papelería',
+    tenian: 'tenían', tenia: 'tenía', estan: 'están', esta_: 'está', aprobacion: 'aprobación', municipalidades: 'municipalidades', agricola: 'agrícola', agricolas: 'agrícolas', climatico: 'climático', climatica: 'climática' };
+  function corregir(s) {
+    s = String(s || '');
+    DICCIONARIO.forEach(function (d) { s = s.replace(d[0], d[1]); });
+    s = s.replace(/\b([A-Za-zñÑ]+)\b/g, function (w) {
+      var lw = w.toLowerCase(), t = TILDES[lw];
+      if (t) return w.charAt(0) === w.charAt(0).toUpperCase() && w !== w.toUpperCase() ? t.charAt(0).toUpperCase() + t.slice(1) : (w === w.toUpperCase() && w.length > 1 ? w : t);
+      /* palabras terminadas en «-ion» llevan tilde: reunion → reunión, capacitacion → capacitación */
+      if (/^[a-zñ]{2,}ion$/.test(lw) && w !== w.toUpperCase()) return w.slice(0, -3) + w.slice(-3).replace(/ion$/i, function (x) { return x.charAt(0) + 'ó' + x.charAt(2); });
+      return w;
+    });
+    return s;
+  }
+  function municipioDe(plain) {
+    var mejor = '', pos = Infinity;
+    MUNICIPIOS.forEach(function (n) {
+      if (n === 'Chiquimula') return;
+      var i = plain.indexOf(sinTildes(n)); if (i >= 0 && i < pos) { pos = i; mejor = n; }
+    });
+    if (!mejor && /\b(municipio|municipalidad|cabecera|alcaldia) (de )?chiquimula\b/.test(plain)) mejor = 'Chiquimula';
+    return mejor;
+  }
+  /* Evidencia: lo que la persona dice que es la evidencia, más cada tipo de medio que menciona (fotografías, acta, lista…). */
+  var TIPOS_EV = [
+    [/\bfotograf[ií]as?\b|\bfotos?\b|\bim[aá]genes\b/, 'Fotografías'], [/\bvideos?\b/, 'Video'],
+    [/\blistas? de (asistencia|participantes)\b|\blistados?\b/, 'Lista de asistencia'], [/\bdiplomas?\b/, 'Diplomas'],
+    [/\bcartas? de compromiso\b|\bcarta firmada\b/, 'Carta de compromiso firmada'], [/\bcertificados?\b/, 'Certificados'], [/\boficios?\b/, 'Oficio'],
+    [/\bconvenios?\b/, 'Convenio'], [/\bacuerdo municipal\b/, 'Acuerdo municipal'], [/\bresoluci[oó]n(es)?\b/, 'Resolución'],
+    [/\bcapturas?( de pantalla)?\b|\bpantallazos?\b/, 'Capturas de pantalla'], [/\bwhats ?app\b/, 'Mensajes de WhatsApp'],
+    [/\baudios?\b|\bgrabaci[oó]n(es)?\b/, 'Audio'], [/\btestimonios?\b/, 'Testimonio'], [/\b(el|un|los|del|su) contratos?\b|\bcontratos? (firmados?|de (trabajo|servicios|consultor[ií]a))\b/, 'Contrato'], [/\bexpedientes?\b/, 'Expedientes'],
+    [/\binformes?\b/, 'Informe'], [/\bmemoria de labores\b/, 'Memoria de labores'], [/\bmapas? de riesgos?\b/, 'Mapa de riesgos'], [/\bfacturas?\b|\brecibos?\b/, 'Facturas o recibos']
+  ];
+  function evidenciaDe(limpio) {
+    var lower = limpio.toLowerCase(), out = [], m;
+    var dichas = [/(?:la evidencia|las evidencias|el medio de verificaci[oó]n|los medios de verificaci[oó]n)\s+(?:es|son|ser[ií]a|ser[aá]n|fue|fueron|est[aá]n? en|qued[oó] en|:)\s*([^.;]{3,160})/gi,
+      /como evidencia\s+(?:tengo|tenemos|hay|qued[oó]|quedaron|se tom[oó]|se tomaron|est[aá]n?|contamos con)\s+([^.;]{3,160})/gi,
+      /(?:lo|la|los|las) (?:comprueba|respalda|demuestra)n?\s+([^.;]{3,120})/gi];
+    dichas.forEach(function (re) { while ((m = re.exec(limpio))) out.push(pulir(m[1]).replace(/\.$/, '')); });
+    var acta = /\bactas?(?:\s+(?:de|del)\s+([a-záéíóúñ ]{3,40}?))?(?=[.,;]| y | que | donde | firmad|$)/i.exec(lower);
+    if (acta) out.push(acta[1] ? 'Acta de ' + acta[1].trim() : (/\bactas? firmadas?\b/.test(lower) ? 'Acta firmada' : 'Acta'));
+    else if ((m = /\bactas? (municipal|comunitaria|de sesi[oó]n|firmadas?)\b/.exec(lower))) out.push('Acta ' + m[1]);
+    else if (/\bactas?\b/.test(lower)) out.push('Acta');
+    TIPOS_EV.forEach(function (t) { if (t[0].test(lower)) out.push(t[1]); });
+    var vistos = [], final = [];
+    out.forEach(function (e) {
+      var k = sinTildes(e); if (!k || vistos.some(function (v) { return v.indexOf(k) >= 0 || (k.indexOf(v) >= 0 && v.length > 4); })) return;
+      vistos.push(k); final.push(e.charAt(0).toUpperCase() + e.slice(1));
+    });
+    return final.join('; ');
+  }
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var REGLAS_DIM = [
     ['Políticas', ['plan municipal', 'plan de', 'politica', 'ordenanza', 'norma', 'reglamento', 'acuerdo municipal', 'ley', 'decreto', 'aprobaron', 'aprobo', 'aprobacion']],
-    ['Prácticas/metodologías', ['protocolo', 'metodologia', 'herramienta', 'procedimiento', 'simulacro', 'capacitacion', 'alerta temprana', 'guia', 'manual', 'practica', 'ruta de evacuacion']],
-    ['Flujos de recursos', ['presupuesto', 'fondos', 'recursos', 'financi', 'asignaron', 'asigno', 'partida', 'inversion', 'donacion', 'quetzales', 'dinero']],
-    ['Relaciones y conexiones', ['coordinacion', 'coordinaron', 'mesa de', 'alianza', 'convenio', 'reunion conjunta', 'red de', 'articul', 'colabor', 'se reunieron']],
+    ['Prácticas/metodologías', ['protocolo', 'metodologia', 'herramienta', 'procedimiento', 'simulacro', 'capacitacion', 'alerta temprana', 'guia', 'manual', 'practica', 'ruta de evacuacion', 'curso', 'formadores', 'taller', 'modulo', 'diplomado']],
+    ['Flujos de recursos', ['presupuesto', 'fondos', 'recursos', 'financi', 'asignaron', 'asigno', 'partida', 'inversion', 'donacion', 'quetzales', 'dinero', 'contrat', 'consultor', 'personal propio']],
+    ['Relaciones y conexiones', ['coordinacion', 'coordinaron', 'mesa de', 'alianza', 'convenio', 'reunion conjunta', 'red de', 'articul', 'colabor', 'se reunieron', 'coordinadoras', 'colred', 'carta de compromiso']],
     ['Dinámicas de poder', ['participacion', 'participaron', 'mujeres', 'jovenes', 'toma de decisiones', 'decidieron', 'voz y voto', 'inclusion', 'liderazgo', 'representacion', 'eligieron']],
     ['Modelos mentales', ['piensan', 'creen', 'percepcion', 'conciencia', 'actitud', 'reconocen', 'reconocio', 'valoran', 'mentalidad', 'se habla', 'cultura de', 'ya no ven']]
   ];
@@ -514,9 +624,9 @@ a.btn { text-decoration: none; }
     ['Nacional', ['nacional', 'ministerio', 'congreso', 'conred', 'gobierno central', 'presidencia']]
   ];
   var RE_ACTOR = /(alcaldesa|alcalde|concejo municipal|concejo|cocode|comude|codede|colred|comred|codred|conred|comisi[oó]n de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| aprob| present| que | del municipio|$)|comit[eé] de [a-záéíóúñ ]{3,40}?(?= y |,|\.|;| que |$)|municipalidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)?|ministerio de [a-záéíóúñ]+|secretar[ií]a de [a-záéíóúñ]+|junta directiva|asociaci[oó]n de [a-záéíóúñ]+|cooperativa [\wáéíóúñ]+|l[ií]deres comunitari[oa]s|lideresas?|gobernadora?|protecci[oó]n civil|bomberos|docentes)/gi;
-  var RE_IDEAS = /\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con|la certeza|la contribuci[oó]n|la dimensi[oó]n|la direcci[oó]n|el nivel|la evidencia|la fuente|la unidad|la cantidad|el actor|los actores|quien actu[oó]|quienes actuaron|es un avance|es un retroceso|fue un avance|fue un retroceso|es neutr[oa]|es inciert[oa]))/gi;
+  var RE_IDEAS = /\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|los|las|una|un|unos|unas)|tenemos (?:el|la|los|las)|falta (?:la|el|los|las)|faltan|queda pendiente|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con|la certeza|la contribuci[oó]n|la dimensi[oó]n|la direcci[oó]n|el nivel|la evidencia|la fuente|la unidad|la cantidad|el actor|los actores|quien actu[oó]|quienes actuaron|es un avance|es un retroceso|fue un avance|fue un retroceso|es neutr[oa]|es inciert[oa]|la semana del|el (?:\d{1,2}|[a-záéíóúñ]+) de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)|como evidencia|se tomaron))/gi;
   /* Más actores posibles: instituciones públicas, autoridades, organizaciones y grupos de la comunidad. */
-  var RE_ACTOR2 = /(alcalde auxiliar|alcaldesa auxiliar|alcald[ií]a ind[ií]gena|autoridades (?:comunitarias|locales|ind[ií]genas|ancestrales|municipales)|corporaci[oó]n municipal|s[ií]ndico|concejal(?:es|a)?|oficina municipal de la mujer|direcci[oó]n municipal de [a-záéíóúñ]+|unidad de gesti[oó]n (?:ambiental|de riesgo)|consejo (?:comunitario|municipal|departamental) de desarrollo|gobernaci[oó]n(?: departamental)?|mancomunidad(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|centro de salud|puesto de salud|distrito de salud|hospital|polic[ií]a(?: nacional civil)?|ej[eé]rcito|cruz roja|iglesia(?: cat[oó]lica| evang[eé]lica)?|parroquia|p[aá]rroco|pastor(?:es)?|c[aá]ritas|comadronas?|promotor(?:es|as?) (?:de salud|comunitari[oa]s)|brigadas?(?: de [a-záéíóúñ]+)?|voluntari[oa]s|grupo de (?:mujeres|j[oó]venes|ahorro|productores)|red de [a-záéíóúñ]+|mesa (?:t[eé]cnica|de [a-záéíóúñ]+)|organizaci[oó]n de [a-záéíóúñ]+|empresa [\wáéíóúñ]+|universidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|escuela(?: [a-záéíóúñ]+)?|instituto(?: [a-záéíóúñ]+)?|maestr[oa]s|padres de familia|productor(?:es|as)|agricultor(?:es|as)|caficultor(?:es|as)|familias de la comunidad|l[ií]deres religiosos|comit[eé] de agua|comit[eé] escolar|comunidad educativa|(?:don|do[nñ]a|el se[nñ]or|la se[nñ]ora|el ingeniero|la ingeniera|el licenciado|la licenciada|el doctor|la doctora|el profesor|la profesora) [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|\b(?:COE|MAGA|MSPAS|MINEDUC|SESAN|SEGEPLAN|INSIVUMEH|MARN|MIDES|INAB|CONAP|PNC|DMM|DMP|OMM|UGAM|CRS|ONG)\b)/g;
+  var RE_ACTOR2 = /(alcalde auxiliar|alcaldesa auxiliar|alcald[ií]a ind[ií]gena|autoridades (?:comunitarias|locales|ind[ií]genas|ancestrales|municipales)|corporaci[oó]n municipal|s[ií]ndico|concejal(?:es|a)?|oficina municipal de la mujer|direcci[oó]n municipal de [a-záéíóúñ ]{3,70}?(?= y |,|\.|;| que | con | para | aprob| super| contrat|$)|direcci[oó]n de (?:coordinaci[oó]n|preparaci[oó]n)|secretar[ií]a ejecutiva(?: de la CONRED)?|SE-CONRED|IM-GIRD|mancomunidad Copanch'orti'|centro universitario de oriente|estudiantes de [a-záéíóúñ ]{3,30}?(?= y |,|\.|;| que | para |$)|unidad de gesti[oó]n (?:ambiental|de riesgo)|consejo (?:comunitario|municipal|departamental) de desarrollo|gobernaci[oó]n(?: departamental)?|mancomunidad(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|centro de salud|puesto de salud|distrito de salud|hospital|polic[ií]a(?: nacional civil)?|ej[eé]rcito|cruz roja|iglesia(?: cat[oó]lica| evang[eé]lica)?|parroquia|p[aá]rroco|pastor(?:es)?|c[aá]ritas|comadronas?|promotor(?:es|as?) (?:de salud|comunitari[oa]s)|brigadas?(?: de [a-záéíóúñ]+)?|voluntari[oa]s|grupo de (?:mujeres|j[oó]venes|ahorro|productores)|red de [a-záéíóúñ]+|mesa (?:t[eé]cnica|de [a-záéíóúñ]+)|organizaci[oó]n de [a-záéíóúñ]+|empresa [\wáéíóúñ]+|universidad(?: de [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|escuela(?: [a-záéíóúñ]+)?|instituto(?: [a-záéíóúñ]+)?|maestr[oa]s|padres de familia|productor(?:es|as)|agricultor(?:es|as)|caficultor(?:es|as)|familias de la comunidad|l[ií]deres religiosos|comit[eé] de agua|comit[eé] escolar|comunidad educativa|(?:don|do[nñ]a|el se[nñ]or|la se[nñ]ora|el ingeniero|la ingeniera|el licenciado|la licenciada|el doctor|la doctora|el profesor|la profesora) [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?: [A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?|\b(?:COE|MAGA|MSPAS|MINEDUC|SESAN|SEGEPLAN|INSIVUMEH|MARN|MIDES|INAB|CONAP|PNC|DMM|DMP|OMM|OMAS|DAFIM|OMPNA|UGAM|CUNORI|USAC|INTECAP|RENAP|ICTA|FAO|UNICEF|PNUD|MINGOB|MICIVI|CODISRA|SOSEP|CRS|ONG|CONRED|COMRED|CODRED|COLRED|COCODE|COMUDE|CODEDE)\b)/g;
   function puntuar(plain, reglas) {
     var mejor = null, max = 0, usadas = [];
     reglas.forEach(function (r) {
@@ -527,6 +637,10 @@ a.btn { text-decoration: none; }
   }
   function fechaDe(plain) {
     var hoy = new Date(), m;
+    /* Un rango («del 7 al 11 de septiembre») cuenta como una sola fecha: la de inicio. */
+    if ((m = /\b(\d{1,2}) (?:al|y el|hasta el|-) (\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?: (?:de|del) (\d{4}))?/.exec(plain))) {
+      var dr = new Date(m[4] ? +m[4] : hoy.getFullYear(), MESES.indexOf(m[3]), +m[1]); return isNaN(dr) ? '' : iso(dr);
+    }
     if (/\b(anteayer|antier)\b/.test(plain)) { hoy.setDate(hoy.getDate() - 2); return iso(hoy); }
     if (/\bayer\b/.test(plain)) { hoy.setDate(hoy.getDate() - 1); return iso(hoy); }
     if ((m = /\b(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?: (?:de|del) (\d{4}))?/.exec(plain))) {
@@ -575,7 +689,7 @@ a.btn { text-decoration: none; }
   /* Corrige la redacción de lo dictado: quita muletillas y palabras repetidas, ordena espacios y comas,
      pone mayúscula al inicio de cada frase y punto al final. No cambia el sentido ni agrega información. */
   function pulir(s) {
-    s = ' ' + String(s || '').replace(/\s+/g, ' ') + ' ';
+    s = ' ' + corregir(String(s || '')).replace(/\s+/g, ' ') + ' ';
     s = s.replace(/([\s,])(?:e+h+|e+m+|m{2,}|o sea|digamos|como te digo|como le digo|me entiendes|verdad que s[ií]|por decirlo as[ií])(?=[\s,.;])/gi, '$1');
     s = s.replace(/([\s,])(?:pues|bueno|este)(?=\s*,)/gi, '$1');
     s = s.replace(/(^|\s)([a-záéíóúñ]+)(?:\s+\2)+(?=[\s,.;])/gi, '$1$2');
@@ -606,7 +720,53 @@ a.btn { text-decoration: none; }
     }
     return '';
   }
-  function estructurarLocal(texto) {
+  /* Deja el texto listo para leerlo: cada párrafo separado en ideas, con el diccionario aplicado. */
+  function prepararTexto(texto) {
+    var limpio = String(texto).split(/\n+/).map(function (seg) {
+      seg = seg.replace(/\s+/g, ' ').trim().replace(/^aclaraci[oó]n:\s*/i, '');
+      if (seg.length > 40 && !/[.!?]/.test(seg.slice(0, -1))) {
+        seg = seg.replace(RE_IDEAS, '. $1');
+        seg = seg.replace(/\b(porque|ya que|debido a que|gracias a que|pues|que|y|pero)\. /gi, '$1 ');
+      }
+      return seg && !/[.!?]$/.test(seg) ? seg + '.' : seg;
+    }).filter(Boolean).join(' ');
+    return corregir(limpio).replace(/^\.\s*/, '');
+  }
+  function frasesDe(limpio) {
+    return (limpio.match(/[^.!?]+[.!?]*/g) || [limpio]).map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 3; });
+  }
+  /* Si el relato cuenta hechos de fechas distintas, se divide en una señal por fecha. */
+  function dividirPorFechas(texto) {
+    var frases = frasesDe(prepararTexto(texto)), segs = [];
+    frases.forEach(function (s) {
+      var f = fechaDe(numerosADigitos(sinTildes(s)).replace(/\bhoy en dia\b/g, ''));
+      var cur = segs[segs.length - 1];
+      if (!cur) { segs.push({ fecha: f, frases: [s] }); return; }
+      if (f && cur.fecha && f !== cur.fecha) {
+        var mismo = segs.filter(function (x) { return x.fecha === f; })[0];
+        if (mismo) mismo.frases.push(s); else segs.push({ fecha: f, frases: [s] });
+        return;
+      }
+      if (f && !cur.fecha) cur.fecha = f;
+      cur.frases.push(s);
+    });
+    segs = segs.filter(function (x) { return x.frases.join(' ').length > 15; });
+    if (segs.filter(function (x) { return x.fecha; }).length < 2) return null;
+    while (segs.length > 10) { var ult = segs.pop(); segs[segs.length - 1].frases = segs[segs.length - 1].frases.concat(ult.frases); }
+    return segs.map(function (x) { return { fecha: x.fecha, texto: x.frases.join(' ') }; });
+  }
+  function estructurarLocal(texto, contexto) {
+    var r0 = estructurarUno(texto);
+    /* En una señal que salió de dividir un relato, lo que no se dice en su parte se toma del relato completo. */
+    if (contexto && contexto.trim() !== String(texto).trim()) {
+      var rc = estructurarUno(contexto);
+      ['municipio', 'comunidad', 'nivel', 'quien', 'contribucion', 'dimension', 'direccion', 'certeza'].forEach(function (k) {
+        if (!r0[k] && rc[k]) { r0[k] = rc[k]; r0.estado[k] = 'inferido'; }
+      });
+    }
+    return r0;
+  }
+  function estructurarUno(texto) {
     /* Cada párrafo (el relato y cada aclaración) se separa en ideas por su cuenta. */
     var limpio = String(texto).split(/\n+/).map(function (seg) {
       seg = seg.replace(/\s+/g, ' ').trim().replace(/^aclaraci[oó]n:\s*/i, '');
@@ -621,15 +781,20 @@ a.btn { text-decoration: none; }
     if (limpio.length > 80 && !/[.!?]/.test(limpio.slice(0, -1))) {
       limpio = limpio.replace(/\s+((?:pero |y )?(?:antes|anteriormente|ahora|despu[eé]s|luego|adem[aá]s|todav[ií]a no|a[uú]n no|el proyecto|tengo (?:el|la|una|un)|lo present[oó]|lo aprob|participaron|asistieron|se beneficiaron|seg[uú]n|de acuerdo con))/gi, '. $1');
     }
+    limpio = corregir(limpio).replace(/^\.\s*/, '');
     var plain = numerosADigitos(sinTildes(limpio));
-    var frases =(limpio.match(/[^.!?]+[.!?]*/g) || [limpio]).map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 3; });
+    var frases = frasesDe(limpio);
     var conPalabra = function (re) { return frases.filter(function (s) { return re.test(sinTildes(s)); }); };
     var r = { estado: {}, justificacion: {}, alertas: [], preguntas: [], hechoObservable: true }, m;
     var pon = function (k, v, est) { r[k] = v || null; r.estado[k] = v ? est : 'falta'; };
 
     var reCambio = /\b(antes|ahora|por primera vez|ya no|nunca|anteriormente|hasta ahora|desde entonces|a partir de)\b/;
     var sinArranque = function (s) { return s.replace(/^(pero|y|entonces|bueno|pues)\s+/i, ''); };
-    pon('quePaso', pulir(frases.slice(0, 2).filter(function (s, i) { return i === 0 || !reCambio.test(sinTildes(s)); }).map(sinArranque).join(' ')), 'narrativa');
+    /* «¿Qué pasó?» reúne todos los hechos contados; se dejan fuera las frases de cambio, de evidencia y las que dictan un campo. */
+    var META = /^(la certeza|la contribucion|la dimension|la direccion|el nivel|la evidencia|las evidencias|el medio de verificacion|la fuente|la unidad|la cantidad|el actor|los actores|quien actuo|quienes actuaron|(es|fue|se trata de) (un )?(avance|retroceso|neutr|inciert)|(si|no) (vale|hay que|conviene)|tengo |tenemos |como evidencia|se tomaron (fotos|fotografias)|segun )/;
+    var hechos = frases.filter(function (s, i) { var p = sinTildes(s); return !META.test(p) && (i === 0 || !reCambio.test(p)); });
+    if (!hechos.length) hechos = frases.slice(0, 1);
+    pon('quePaso', pulir(hechos.slice(0, 6).map(sinArranque).join(' ')), 'narrativa');
     pon('fechaHecho', fechaDe(plain), 'inferido');
 
     var actores = [], vistos = {};
@@ -644,16 +809,18 @@ a.btn { text-decoration: none; }
       Object.keys(vistos).forEach(function (v) { if (k.indexOf(v) >= 0) { actores.splice(actores.indexOf(vistos[v]), 1); delete vistos[v]; } });
       vistos[k] = a; actores.push(a);
     });
-    pon('quien', actores.slice(0, 6).join(', '), dicho ? 'narrativa' : 'inferido');
+    pon('quien', actores.slice(0, 8).join(', '), dicho ? 'narrativa' : 'inferido');
     /* El nivel sale primero de quién actuó; si no hay actor, del resto del relato. */
     var niv = puntuar(sinTildes(actores.join(' ')), REGLAS_NIVEL);
     if (!niv.valor) niv = puntuar(plain, REGLAS_NIVEL);
     pon('nivel', niv.valor, 'inferido');
     pon('comunidad', lugarDe(limpio), 'narrativa');
+    pon('municipio', municipioDe(plain), 'narrativa');
+    if (!r.nivel && r.municipio) pon('nivel', 'Municipal', 'inferido');
 
     var cambios = conPalabra(reCambio).filter(function (s) { return !/^(es|fue) (un )?(avance|retroceso|neutr|inciert)/i.test(s); });
     if (cambios.length > 1) cambios = cambios.filter(function (s) { return s !== frases[0]; });
-    pon('queCambio', pulir(cambios.slice(0, 2).map(sinArranque).join(' ')), 'narrativa');
+    pon('queCambio', pulir(cambios.slice(0, 4).map(sinArranque).join(' ')), 'narrativa');
 
     var dim = puntuar(plain, REGLAS_DIM); pon('dimension', dim.valor, 'inferido');
     if (dim.valor) r.justificacion.dimension = 'el relato menciona «' + dim.palabras.slice(0, 3).join('», «') + '».';
@@ -668,7 +835,11 @@ a.btn { text-decoration: none; }
        se propone lo que cambió, para que lo confirme o lo corrija. */
     var pq = /(?:avance|retroceso|neutr[oa]|inciert[oa])[^.]{0,25}?\b(?:porque|ya que|debido a que|debido a|gracias a que|gracias a|pues)\s+([^.]{5,220})/i.exec(limpio);
     var pqTxt = pq ? pq[1] : '', pqEst = 'narrativa';
-    if (!pqTxt) { var fp = /\b(porque|ya que|debido a que|debido a|gracias a que|gracias a)\s+([^.]{5,220})/i.exec(limpio); if (fp) pqTxt = fp[1] + ' ' + fp[2]; }
+    if (!pqTxt) {
+      var reFp = /\b(porque|ya que|debido a que|debido a|gracias a que|gracias a)\s+([^.]{5,220})/gi, fp, todas = [];
+      while ((fp = reFp.exec(limpio)) && todas.length < 3) todas.push(fp[1] + ' ' + fp[2]);
+      pqTxt = todas.join('. ');
+    }
     if (!pqTxt && dir && r.queCambio) { pqTxt = r.queCambio; pqEst = 'inferido'; }
     pon('porQue', pqTxt ? pulir(pqTxt) : '', pqEst);
 
@@ -679,11 +850,12 @@ a.btn { text-decoration: none; }
     pon('contribucion', con, 'inferido');
     if (con) r.justificacion.contribucion = 'por lo que el relato dice que hizo el proyecto.';
 
-    var ev = conPalabra(/\b(acta|foto|fotografia|video|documento|mensaje|testimonio|informe|listado|lista de asistencia|captura|audio|oficio|resolucion|acuerdo firmado)\b/);
-    pon('evidencia', pulir(ev.slice(-1).map(sinArranque).join(' ')), 'narrativa');
+    var ev = conPalabra(/\b(acta|foto|fotografia|fotografias|video|documento|mensaje|testimonio|informe|listado|lista de asistencia|captura|audio|oficio|resolucion|acuerdo firmado|diploma|diplomas|carta|certificado|convenio|contrato|expediente)\b/);
+    pon('evidencia', evidenciaDe(limpio), 'narrativa');
 
     var alta = /\b(lo vi|estuve|presencie|asisti|participe|estabamos|tengo (el|la|una|un) (acta|foto|documento|video|informe|listado)|hay (acta|documento))/.test(plain) || (ev.length > 0 && /\b(acta|foto|fotografia|video|documento|informe|listado|resolucion|oficio)\b/.test(sinTildes(ev.join(' '))));
     var baja = /\b(me contaron|dicen que|escuche que|me dijeron|rumor|al parecer|supuestamente|segun me)/.test(plain);
+    alta = alta || /(Acta|Fotograf|Diploma|Lista de asistencia|Video|Informe|Oficio|Resoluci|Carta|Certificad|Contrato|Expediente|Convenio|Acuerdo municipal)/.test(r.evidencia || '');
     var cer = alta && baja ? 'Media' : alta ? 'Alta' : baja ? 'Baja' : '';
     pon('certeza', cer, 'inferido');
     if (cer) r.justificacion.certeza = alta && baja ? 'parte lo viste y parte te lo contaron.' : alta ? 'lo presenciaste o tienes un documento.' : 'te lo contaron y no hay respaldo.';
@@ -694,10 +866,10 @@ a.btn { text-decoration: none; }
 
     var cant = '', uni = '';
     if (/\b(sin dato|no se cuant|no tengo el dato|no sabemos cuant)/.test(plain)) cant = 'sin dato';
-    else if ((m = /\b(\d[\d.,]*)\s+(personas|familias|hogares|comunidades|municipios|instituciones|organizaciones|comites|comisiones|escuelas|documentos|planes|mujeres|hombres|jovenes|lideres|participantes|docentes|estudiantes)\b/.exec(plain))) {
+    else if ((m = new RegExp('\\b(\\d[\\d.,]*) de (?:las |los )?\\d[\\d.,]* ' + UNID_RE.source).exec(plain)) || (m = new RegExp('\\b(\\d[\\d.,]*)\\s+' + UNID_RE.source + '\\b').exec(plain))) {
       cant = m[1].replace(/[.,]$/, '');
       var mapa = { comites: 'Comités o comisiones', comisiones: 'Comités o comisiones', documentos: 'Documentos o planes', planes: 'Documentos o planes' };
-      uni = mapa[m[2]] || m[2].charAt(0).toUpperCase() + m[2].slice(1);
+      uni = mapa[m[2]] || corregir(m[2].charAt(0).toUpperCase() + m[2].slice(1));
     }
     pon('cantidad', cant, 'narrativa'); pon('unidad', uni, 'narrativa');
     m = /(?:seg[uú]n|de acuerdo con|con datos de|datos del?) (?:el |la |los |las )?([^.,;]{3,60})/i.exec(limpio);
@@ -722,7 +894,6 @@ a.btn { text-decoration: none; }
     if ((m = ultimo(/\b(si|no) (?:vale la pena|hay que|conviene|es necesario|hace falta) profundizar\b/)) || (m = ultimo(/\bprofundizar(?: es)?:? (si|no)\b/))) pon('profundizar', m[1] === 'si' ? 'Sí' : 'No', 'narrativa');
     if ((m = ultimo(/\bla cantidad (?:es|son|fue)(?: de)? (\d[\d.,]*)/))) pon('cantidad', m[1].replace(/[.,]$/, ''), 'narrativa');
     var directo = function (re) { var g = new RegExp(re.source, 'gi'), x, last = null; while ((x = g.exec(limpio))) last = x; return last ? pulir(last[1]).replace(/\.$/, '') : ''; };
-    var dEv = directo(/la evidencia (?:es|son|est[aá] en|est[aá]n en)\s+([^.;]{3,140})/); if (dEv) pon('evidencia', dEv, 'narrativa');
     var dFu = directo(/la fuente (?:del dato )?(?:es|son|fue)\s+([^.;]{3,90})/); if (dFu) pon('fuente', dFu, 'narrativa');
     var dUn = directo(/la unidad (?:es|son)\s+([^.;]{2,40})/); if (dUn) pon('unidad', dUn, 'narrativa');
 
@@ -733,7 +904,7 @@ a.btn { text-decoration: none; }
     return r;
   }
   /* Se lee el relato y también lo que se escribe o dicta en «Responde lo que falta». */
-  var reglasLocales = { json: async function () { return estructurarLocal(document.querySelector('#narr').value + '\n' + document.querySelector('#resp').value); } };
+  var reglasLocales = { json: async function () { return estructurarLocal(document.querySelector('#narr').value + '\n' + document.querySelector('#resp').value, S.contexto); } };
 
   /* Dictado propio del navegador (Chrome, Edge, Android, Safari), sin cuentas ni claves. */
   function dictadoNavegador() {
@@ -816,6 +987,7 @@ a.btn { text-decoration: none; }
       'Fecha del hecho': rec.fechaHecho, 'Registrada por': rec.registradoPor, 'Cargo': rec.registradoCargo, 'Componente': rec.registradoComponente,
       'Que paso': rec.quePaso, 'Quien actuo': rec.quien, 'Nivel': rec.nivel, 'Que cambio': rec.queCambio,
       'Comunidad': rec.nivel === 'Comunitario' ? rec.comunidad : '', 'Por que la direccion': rec.porQue,
+      'Municipio': /^(Municipal|Comunitario)$/.test(rec.nivel) ? rec.municipio : '',
       'Dimension': rec.dimension, 'Direccion': rec.direccion, 'Contribucion del proyecto': rec.contribucion, 'Evidencia': rec.evidencia,
       'Certeza': rec.certeza, 'Para profundizar': rec.profundizar, 'Cantidad': rec.cantidad, 'Unidad': rec.unidad, 'Fuente del dato': rec.fuente,
       'Criterios cumplidos': String(ok), 'Narrativa original': rec.narrativa
@@ -832,13 +1004,15 @@ a.btn { text-decoration: none; }
     direccion: ['Avance', 'Retroceso', 'Neutro/incierto'],
     contribucion: ['Directa', 'Parcial', 'Ninguna (solo contexto)'],
     certeza: ['Alta', 'Media', 'Baja'],
-    profundizar: ['Sí', 'No']
+    profundizar: ['Sí', 'No'],
+    municipio: MUNICIPIOS
   };
   var FIELDS = [
     { k: 'fechaHecho', n: '', label: 'Fecha del hecho', type: 'date', g: 'meta', q: '¿Cuándo ocurrió el hecho?' },
     { k: 'quePaso', n: '1', label: '¿Qué pasó?', type: 'textarea', g: 'quePaso', q: '¿Qué ocurrió exactamente, cuándo y dónde? ¿Qué se pudo ver, escuchar o leer?' },
     { k: 'quien', n: '2', label: '¿Quién actuó?', type: 'text', g: 'quien', q: '¿Quién tomó la decisión o la acción y de qué institución?' },
     { k: 'nivel', n: '2', label: 'Nivel', type: 'select', g: 'quien', q: '¿A qué nivel ocurrió: comunitario, municipal, departamental o nacional?' },
+    { k: 'municipio', n: '2', label: 'Municipio (Chiquimula)', type: 'dropdown', g: 'quien', q: '¿En cuál de los 11 municipios de Chiquimula ocurrió?' },
     { k: 'comunidad', n: '2', label: '¿Qué comunidad?', type: 'text', g: 'quien', q: '¿En qué comunidad, aldea o caserío ocurrió?' },
     { k: 'queCambio', n: '3', label: '¿Qué cambió?', type: 'textarea', g: 'queCambio', q: '¿Qué era distinto antes y qué se hace ahora que antes no se hacía?' },
     { k: 'dimension', n: '4', label: 'Dimensión', type: 'select', g: 'clasif', q: '¿Qué parte del sistema cambió? ¿Cuál de las seis dimensiones lo explica mejor?' },
@@ -971,6 +1145,8 @@ a.btn { text-decoration: none; }
             ctl.dispatchEvent(new Event('change'));
           } });
         }));
+      } else if (f.type === 'dropdown') {
+        ctl = h('select', { id: id }, h('option', { value: '', text: '— Elegir municipio —' }), ENUMS[f.k].map(function (o) { return h('option', { value: o, text: o }); }));
       } else if (f.type === 'date') ctl = h('input', { id: id, type: 'date' });
       else ctl = h('input', { id: id, type: 'text', autocomplete: 'off', list: f.k === 'fuente' ? 'fuentes' : null });
       if (f.k === 'evidencia') body = [ctl, evidBox()];
@@ -982,7 +1158,7 @@ a.btn { text-decoration: none; }
       var field = h('div', { class: 'field' + wide }, h('div', { class: 'fhead' }, label, chip), (body || [ctl, pills]).filter(Boolean), why);
       rowEl.append(field);
       ui[f.k] = { ctl: ctl, chip: chip, why: why, pills: pills, field: field, sync: sync };
-      ctl.addEventListener(f.type === 'select' || f.type === 'date' ? 'change' : 'input', function () {
+      ctl.addEventListener(f.type === 'select' || f.type === 'date' || f.type === 'dropdown' ? 'change' : 'input', function () {
         S.ficha[f.k] = ctl.value.trim ? ctl.value.trim() : ctl.value;
         S.touched[f.k] = true;
         S.estado[f.k] = S.ficha[f.k] ? 'manual' : (S.analizado ? 'falta' : 'pendiente');
@@ -998,6 +1174,8 @@ a.btn { text-decoration: none; }
     if (u.sync) u.sync(S.ficha[k]);
     /* «¿Qué comunidad?» solo se pide cuando el nivel es comunitario. */
     if ((k === 'nivel' || k === 'comunidad') && ui.comunidad) ui.comunidad.field.hidden = S.ficha.nivel !== 'Comunitario';
+    /* El municipio se elige entre los 11 de Chiquimula cuando el hecho es municipal o comunitario. */
+    if ((k === 'nivel' || k === 'municipio') && ui.municipio) ui.municipio.field.hidden = !/^(Municipal|Comunitario)$/.test(S.ficha.nivel);
     u.chip.textContent = CHIP[e]; u.chip.className = 'chip ' + e;
     var j = S.just[k];
     if (j && S.ficha[k] && e !== 'manual') { u.why.textContent = 'Por qué: ' + j; u.why.hidden = false; }
@@ -1015,6 +1193,9 @@ a.btn { text-decoration: none; }
       h('div', { class: 'actions', id: 'evid-actions', style: 'margin-top:0', hidden: true },
         h('button', { class: 'btn small', id: 'btn-cam', type: 'button', text: 'Tomar foto', hidden: !ES_TELEFONO, onclick: function () { cam.click(); } }),
         h('button', { class: 'btn small', type: 'button', text: 'Subir documento', onclick: function () { doc.click(); } })),
+      h('div', { class: 'drop', id: 'evid-drop', hidden: true },
+        h('span', { text: 'Arrastra aquí fotos o documentos, o pégalos con Ctrl + V' }),
+        h('button', { class: 'btn small', type: 'button', text: 'Pegar', onclick: pegarDesdePortapapeles })),
       cam, doc,
       h('ul', { class: 'files', id: 'files' }),
       h('p', { class: 'status', id: 'evid-status', role: 'status', 'aria-live': 'polite', style: 'margin-top:0;min-height:0' }),
@@ -1092,7 +1273,48 @@ a.btn { text-decoration: none; }
         h('button', { type: 'button', 'aria-label': 'Quitar ' + a.nombre, text: 'Quitar', onclick: function () { quitarArchivo(a); } })));
     });
   }
-  function pintarAdjuntos() { var puede = !!assetsApi || !!FLOW_URL; $('#evid-actions').hidden = !puede; $('#evid-note').hidden = puede; }
+  function puedeAdjuntar() { return !!assetsApi || !!FLOW_URL; }
+  function pintarAdjuntos() { var puede = puedeAdjuntar(); $('#evid-actions').hidden = !puede; $('#evid-drop').hidden = !puede; $('#evid-note').hidden = puede; }
+  /* Evidencia arrastrada o pegada: las imágenes pegadas llegan sin nombre, se les pone uno con la hora. */
+  function conNombre(f) {
+    if (f.name && !/^image\.(png|jpe?g|gif|webp)$/i.test(f.name)) return f;
+    var ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    try { return new File([f], 'pegado-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext, { type: f.type }); } catch (e) { return f; }
+  }
+  function archivosDe(dt) {
+    var fs = Array.prototype.slice.call((dt && dt.files) || []);
+    if (!fs.length && dt && dt.items) Array.prototype.forEach.call(dt.items, function (it) { if (it.kind === 'file') { var f = it.getAsFile(); if (f) fs.push(f); } });
+    return fs.slice(0, 5).map(conNombre);
+  }
+  async function pegarDesdePortapapeles() {
+    try {
+      var items = await navigator.clipboard.read(), fs = [];
+      for (var i = 0; i < items.length; i++) {
+        var tipo = items[i].types.filter(function (t) { return /^(image\/|application\/pdf)/.test(t); })[0];
+        if (tipo) fs.push(conNombre(new File([await items[i].getType(tipo)], 'image.' + (tipo.split('/')[1] || 'png'), { type: tipo })));
+      }
+      if (fs.length) subir(fs); else setStatus('#evid-status', 'No hay una imagen copiada. Copia la foto o la captura y vuelve a pulsar «Pegar», o usa Ctrl + V.', true);
+    } catch (e) {
+      setStatus('#evid-status', 'El navegador no dejó leer lo copiado con el botón. Haz clic en la página y pulsa Ctrl + V.', true);
+    }
+  }
+  document.addEventListener('paste', function (e) {
+    if (!puedeAdjuntar() || !$('#gate').hidden) return;
+    var fs = archivosDe(e.clipboardData);
+    if (!fs.length) return;
+    e.preventDefault(); subir(fs);
+    try { $('#evid-drop').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (x) {}
+  });
+  var arrastre = 0;
+  document.addEventListener('dragenter', function (e) { if (puedeAdjuntar() && e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) { arrastre++; $('#evid-drop').classList.add('sobre'); } });
+  document.addEventListener('dragleave', function () { arrastre = Math.max(0, arrastre - 1); if (!arrastre) $('#evid-drop').classList.remove('sobre'); });
+  document.addEventListener('dragover', function (e) { if (puedeAdjuntar() && e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) e.preventDefault(); });
+  document.addEventListener('drop', function (e) {
+    var fs = archivosDe(e.dataTransfer);
+    arrastre = 0; $('#evid-drop').classList.remove('sobre');
+    if (!fs.length || !puedeAdjuntar()) return;
+    e.preventDefault(); subir(fs);
+  });
   function quienRegistra() {
     var v = $('#por').value;
     if (v === '__otra') {
@@ -1154,6 +1376,7 @@ a.btn { text-decoration: none; }
     FIELDS.forEach(function (f) {
       if (f.k === 'fechaHecho' || f.k === 'unidad' || f.k === 'fuente') return;
       if (f.k === 'comunidad' && S.ficha.nivel !== 'Comunitario') return;
+      if (f.k === 'municipio' && !/^(Municipal|Comunitario)$/.test(S.ficha.nivel)) return;
       if (f.k === 'porQue' && !S.ficha.direccion) return;
       var e = S.estado[f.k];
       if (e === 'falta' || e === 'inferido') {
@@ -1209,13 +1432,93 @@ a.btn { text-decoration: none; }
   }
 
   /* ---------- Narrativa: pistas, conteo y borrador ---------- */
-  var lote = [];
+  var lote = [], ultimaEntrada = [];
   function cuantas() { var el = $('#cuantas'); return Math.max(1, Math.min(10, (el && +el.value) || 1)); }
+  function faltaMinimo(rec) {
+    var f = [];
+    if (!rec.quePaso) f.push('qué pasó'); if (!rec.dimension) f.push('dimensión'); if (!rec.direccion) f.push('dirección');
+    return f;
+  }
   function pintarLote() {
     var total = cuantas();
-    $('#lote-info').textContent = total > 1 ? 'Estás en la señal ' + (lote.length + 1) + ' de ' + total + (lote.length ? ' · ' + lote.length + ' lista' + (lote.length === 1 ? '' : 's') + ', se enviarán todas al final' : '') : '';
-    $('#btn-lote-clear').hidden = !lote.length;
+    $('#lote-info').textContent = grupoDiv ? 'Dividí el relato por fechas en ' + total + ' señales. Estás viendo una; las demás ya están llenas y se guardan juntas.'
+      : total > 1 ? 'Estás en la señal ' + (lote.length + 1) + ' de ' + total + (lote.length ? ' · ' + lote.length + ' lista' + (lote.length === 1 ? '' : 's') + ', se enviarán todas al final' : '') : '';
+    $('#btn-lote-clear').hidden = !lote.length || !!grupoDiv;
+    $('#btn-unir').hidden = !grupoDiv;
+    var ul = $('#lote-lista'); ul.textContent = ''; ul.hidden = !lote.length;
+    lote.forEach(function (rec, i) {
+      var falta = faltaMinimo(rec);
+      ul.append(h('li', null,
+        h('span', null, h('strong', { text: (rec.fechaHecho ? fmtISO(rec.fechaHecho) : 'Sin fecha') + ' · ' }), String(rec.quePaso || '(sin «qué pasó»)').slice(0, 110) + (String(rec.quePaso || '').length > 110 ? '…' : ''),
+          falta.length ? h('span', { class: 'chip falta', style: 'margin-left:6px', text: 'Falta: ' + falta.join(', ') }) : null),
+        h('button', { class: 'btn small', type: 'button', text: 'Revisar', onclick: function () { revisarDelLote(i); } })));
+    });
     renderReview();
+  }
+  /* ---------- División del relato por fechas ---------- */
+  var grupoDiv = null;
+  function registroDesde(r, texto) {
+    var rec = { estado: {} };
+    KEYS.forEach(function (k) {
+      rec[k] = norm(k, r[k]) || '';
+      rec.estado[k] = rec[k] ? (r.estado && r.estado[k] === 'inferido' ? 'inferido' : 'narrativa') : 'falta';
+    });
+    rec.narrativa = texto; rec.hechoObservable = r.hechoObservable !== false;
+    rec.createdAt = Date.now() + Math.floor(Math.random() * 100000); rec.archivos = []; rec.auto = true; rec.contexto = S.contexto || '';
+    return rec;
+  }
+  function cargarRegistro(rec) {
+    resetState();
+    KEYS.forEach(function (k) {
+      S.ficha[k] = rec[k] || '';
+      S.estado[k] = (rec.estado && rec.estado[k]) || (S.ficha[k] ? 'narrativa' : 'falta');
+      if (S.estado[k] === 'manual') S.touched[k] = true;
+    });
+    S.analizado = true; S.hechoObs = rec.hechoObservable; S.archivos = (rec.archivos || []).slice();
+    S.contexto = rec.contexto || S.contexto;
+    $('#narr').value = String(rec.narrativa || '').split('\n\nAclaración: ')[0]; $('#resp').value = '';
+    var t = $('#narr').value, w = t.trim() ? t.trim().split(/\s+/).length : 0;
+    $('#narr-count').textContent = w ? '· ' + w + ' palabra' + (w === 1 ? '' : 's') : '';
+    paintAll();
+  }
+  function revisarDelLote(i) {
+    var sel = lote[i]; if (!sel) return;
+    var actual = registroActual(); actual.auto = !!grupoDiv; actual.contexto = S.contexto || '';
+    lote.splice(i, 1, actual);
+    cargarRegistro(sel); pintarLote();
+    flash('Ahora ves la señal del ' + (sel.fechaHecho ? fmtISO(sel.fechaHecho) : 'relato') + '. La anterior quedó guardada en la lista.');
+    try { $('#card-3').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+  }
+  function pintarHintDivision() {
+    var hint = $('#div-hint'); if (!hint) return;
+    var segs = !grupoDiv ? dividirPorFechas($('#narr').value) : null;
+    hint.hidden = !segs;
+    if (segs) $('#div-hint-txt').textContent = 'Detecté ' + segs.length + ' fechas distintas (' + segs.map(function (s) { return fmtISO(s.fecha) || 'sin fecha'; }).join(', ') + '). Al terminar de dictar o al salir del cuadro, el relato se dividirá en ' + segs.length + ' señales.';
+  }
+  function intentarDividir() {
+    if (grupoDiv) return false;
+    var texto = $('#narr').value.trim(), segs = dividirPorFechas(texto);
+    if (!segs) { pintarHintDivision(); return false; }
+    var libres = 10 - lote.length;
+    if (libres < 2) return false;
+    while (segs.length > libres) { var u = segs.pop(); segs[segs.length - 1].texto += ' ' + u.texto; }
+    grupoDiv = { original: texto };
+    S.contexto = texto + ($('#resp').value.trim() ? '\n' + $('#resp').value.trim() : '');
+    segs.slice(1).forEach(function (sg) { lote.push(registroDesde(estructurarLocal(sg.texto, S.contexto), sg.texto)); });
+    $('#narr').value = segs[0].texto;
+    $('#cuantas').value = String(lote.length + 1);
+    pintarHintDivision(); pintarLote();
+    estructurar();
+    flash('Dividí el relato en ' + segs.length + ' señales, una por fecha. Revisa cada una en la lista y guárdalas juntas.');
+    return true;
+  }
+  function unirDeNuevo() {
+    if (!grupoDiv) return;
+    lote = lote.filter(function (r) { return !r.auto; });
+    var original = grupoDiv.original; grupoDiv = null; S.contexto = '';
+    resetState(); $('#narr').value = original; $('#cuantas').value = String(Math.min(10, lote.length + 1));
+    pintarLote(); updateNarr(); estructurar();
+    flash('El relato volvió a ser una sola señal.');
   }
   var draftTimer = null, vivoTimer = null;
   /* Lo que se responde en «lo que falta» también llena la ficha en vivo. */
@@ -1227,6 +1530,7 @@ a.btn { text-decoration: none; }
     var t = $('#narr').value, w = t.trim() ? t.trim().split(/\s+/).length : 0;
     PISTAS.forEach(function (p) { p.el.classList.toggle('on', p.re.test(t)); });
     $('#narr-count').textContent = w ? '· ' + w + ' palabra' + (w === 1 ? '' : 's') : '';
+    pintarHintDivision();
     /* Llenado en vivo: con las reglas locales, la ficha se actualiza sola mientras se escribe o se dicta. */
     clearTimeout(vivoTimer);
     if (sampleApi === reglasLocales && t.trim().length >= 25) vivoTimer = setTimeout(function () { if (!S.busy) estructurar(); }, 700);
@@ -1270,7 +1574,7 @@ a.btn { text-decoration: none; }
     if (!v) return '';
     if (k === 'fechaHecho') { return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)) ? v : ''; }
     if (ENUMS[k]) {
-      var low = v.toLowerCase(), hit = ENUMS[k].filter(function (o) { return o.toLowerCase() === low; })[0];
+      var low = sinTildes(v), hit = ENUMS[k].filter(function (o) { return sinTildes(o) === low; })[0];
       return hit || '';
     }
     if (k === 'unidad') { var lu = v.toLowerCase(); return UNIDADES.filter(function (o) { return o.toLowerCase() === lu; })[0] || v; }
@@ -1433,16 +1737,32 @@ a.btn { text-decoration: none; }
       try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
       return;
     }
+    /* Todas las señales de la entrada llevan quién registra; las que salieron de dividir se revisan antes de enviar. */
+    var p = quienRegistra();
+    lote.forEach(function (x) { if (p) { x.registradoPor = p.n; x.registradoCargo = p.c; x.registradoComponente = p.a; } });
+    var incompleta = lote.filter(function (x) { return faltaMinimo(x).length; })[0];
+    if (incompleta) {
+      setStatus('#save-status', 'La señal del ' + (incompleta.fechaHecho ? fmtISO(incompleta.fechaHecho) : 'relato') + ' necesita ' + faltaMinimo(incompleta).join(', ') + '. Pulsa «Revisar» en esa señal y complétala.', true);
+      return;
+    }
+    var todos = lote.concat([rec]).sort(function (a, b) { return String(a.fechaHecho || '9999').localeCompare(String(b.fechaHecho || '9999')) || a.createdAt - b.createdAt; });
+    var enviados = [];
     S.saving = true; renderReview(); setStatus('#save-status', total > 1 ? 'Guardando ' + total + ' señales…' : 'Guardando…');
     try {
-      while (lote.length) { await enviarAFlujo(lote[0]); var hecho = lote.shift(); hecho.id = 'local-' + hecho.createdAt; localRecords.unshift(hecho); }
-      await enviarAFlujo(rec);
-      rec.id = 'local-' + rec.createdAt; localRecords.unshift(rec); renderRecords();
+      for (var i = 0; i < todos.length; i++) { await enviarAFlujo(todos[i]); todos[i].id = 'local-' + todos[i].createdAt; localRecords.unshift(todos[i]); enviados.push(todos[i]); }
+      ultimaEntrada = todos.slice();
+      lote = []; grupoDiv = null; S.contexto = '';
+      renderRecords();
       flash(total > 1 ? 'Se enviaron las ' + total + ' señales al registro de Resurgir en SharePoint.' : 'Señal enviada al registro de Resurgir en SharePoint.');
       $('#cuantas').value = '1'; pintarLote();
       limpiar(true);
+      setStatus('#save-status', 'Guardado. Si quieres, genera ahora el informe de análisis de lo que acabas de registrar.');
       try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     } catch (e) {
+      /* Quedan pendientes solo las que no se enviaron: una vuelve a la ficha y las demás a la lista. */
+      var faltan = todos.filter(function (x) { return enviados.indexOf(x) < 0; });
+      if (enviados.length && faltan.length) { lote = faltan.slice(1); cargarRegistro(faltan[0]); }
+      else lote = faltan.filter(function (x) { return x !== rec; });
       var c = e && e.code, msg = 'No se pudo enviar el registro. Revisa tu conexión a internet e intenta de nuevo; la ficha sigue aquí.';
       if (c === 'invalid_argument') msg = 'No tienes permiso para guardar en el registro compartido. Se necesita el rol de Colaborador o superior.';
       else if (c === 'quota_exceeded') msg = 'El registro compartido está lleno. Avisa a quien administra la página.';
@@ -1451,6 +1771,292 @@ a.btn { text-decoration: none; }
       $('#cuantas').value = String(Math.min(10, lote.length + 1)); pintarLote(); renderRecords();
       setStatus('#save-status', msg, true);
     } finally { S.saving = false; renderReview(); }
+  }
+  /* ---------- Informe de análisis cualitativo (estructura del informe de San Jacinto) ---------- */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function minus(s) { s = String(s || '').replace(/\.$/, ''); return s && !/^[A-ZÁÉÍÓÚÑ]{2,}/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s; }
+  function corto(s, n) { s = String(s || '').trim(); return s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s; }
+  function fechaLarga(isoF) { if (!isoF) return ''; var d = new Date(isoF + 'T12:00:00'); return isNaN(d) ? isoF : d.getDate() + ' de ' + MESES[d.getMonth()]; }
+  /* Antepone la fecha solo si la frase no la dice ya. */
+  function conFecha(isoF, txt, plantilla) {
+    txt = String(txt || ''); if (!isoF) return txt;
+    var fl = fechaLarga(isoF); if (sinTildes(txt).indexOf(sinTildes(fl)) >= 0) return txt;
+    return plantilla === 'El' ? 'El ' + fl + ', ' + minus(txt) : fl + ': ' + txt;
+  }
+  function estadoFrase(s) {
+    var p = sinTildes(s), l = String(s).toLowerCase();
+    if (/\b(seria|serian|lograria|lograrian|podria|podrian|se espera|esperan|esperamos|pretende|pretenden|busca|buscan|va a|van a|vamos a|planea|planean|el objetivo es|la meta es|cuando esten|una vez que)\b/.test(p) || /[a-záéíóúñ]+(ará|erá|irá|arán|erán|irán)(?=[^a-záéíóúñ]|$)/.test(l)) return 'Proyectado';
+    if (/\b(pendiente|pendientes|falta|faltan|en proceso|todavia no|aun no|se esta|estan (organizando|trabajando|elaborando|preparando|conformando|gestionando)|siguen|continuan)\b/.test(p)) return 'En proceso';
+    return 'Logrado';
+  }
+  var ETAPAS = [[/(curso|capacit|taller|formacion|formador|diplomado|entrenamiento)/, 'Formación y capacitación'], [/(contrat|consultor)/, 'Decisión institucional'],
+    [/(carta|firmar|firmaron|firmo|compromiso)/, 'Compromiso formalizado'], [/(acredit|expediente)/, 'Acreditación'], [/(organiz|conform)/, 'Organización'],
+    [/(presupuesto|fondos|recursos|financ|quetzales)/, 'Asignación de recursos'], [/(plan |politica|reglamento|acuerdo municipal)/, 'Aprobación de instrumento'],
+    [/(simulacro|alerta|evacuacion)/, 'Preparación y respuesta'], [/(sensibiliz|socializ|concienci)/, 'Sensibilización'], [/(\bred\b|articul|coordinacion)/, 'Red y coordinación'],
+    [/(reunion|asamblea|sesion|convoc)/, 'Reunión con actores']];
+  function etapaDe(s) { var p = sinTildes(s); var e = ETAPAS.filter(function (x) { return x[0].test(p); })[0]; return e ? e[1] : 'Hecho'; }
+  var CATS = [
+    ['Apropiación municipal', /(municipalidad|alcald|concejo|municipio)[^.]{0,80}(contrat|asign|invirt|invier|destin|financ|asumi|convoc|compromet)|(contrat|asign|destin|financ)[^.]{0,60}(municipalidad|alcald|concejo)/, 'La iniciativa y la inversión son locales; el cambio no depende solo del proyecto.'],
+    ['Transferencia de capacidades', /(curso|capacit|taller|formacion|formador|diplomado)/, 'El modelo es replicable si cada nivel tiene responsables y recursos.'],
+    ['Compromiso formalizado', /(carta|acta|firmaron|firmo|compromiso|convenio)/, 'Funciona como mecanismo de rendición de cuentas; no equivale a organización efectiva.'],
+    ['Sensibilización comunitaria', /(sensibiliz|concienci|socializ)/, 'Es un cambio de conocimiento y actitud; conviene verificar si se traduce en prácticas.'],
+    ['Institucionalización', /(acredit|acuerdo municipal|reglamento|protocolo|politica|plan municipal|\bred\b)/, 'Hay una ruta formal definida; los trámites administrativos pueden ser el cuello de botella.'],
+    ['Organización comunitaria', /(organiz|conform|cocode|colred|coordinadora|comite)/, 'Muestra capacidad de organización local; falta medir cuántas estructuras están activas.'],
+    ['Asignación de recursos', /(presupuesto|fondos|recursos|financ|quetzales|inversion)/, 'Es una señal de sostenibilidad si los recursos se mantienen en el tiempo.'],
+    ['Participación e inclusión', /(mujeres|jovenes|participacion|inclusion|liderazgo femenino|lideresas)/, 'Indica cambios en quién participa y decide; conviene desagregar por sexo y edad.'],
+    ['Barreras y pendientes', /(pendiente|falta|faltan|problema|dificultad|retraso|demora|todavia no|aun no)/, 'El avance real queda sujeto a resolver estos pendientes.'],
+    ['Ejemplaridad e hito', /(primer |primera |unico|pionero|modelo|100 ?%|cien por ciento)/, 'Tiene potencial de réplica; requiere confirmar la comparación antes de comunicarlo.']
+  ];
+  var RIS = [
+    ['RI 2.1 · Dirección integral de riesgos', /(im-gird|direccion municipal de gestion|gestion integral de riesgo|politica m-rrd|planes? m-rrd|\bpoa\b|presupuesto|contrat)/],
+    ['RI 2.2 · Espacios de coordinación y COLRED', /(colred|coordinadora|comred|espacio de coordinacion|red comunitaria|rcgird|acredit|cocode)/],
+    ['RI 2.3 · Decisiones con datos locales', /(boletin|agroclima|pluviom|visor|datos locales|alerta temprana|\bmta\b|coaped|insivumeh)/]
+  ];
+  var NIVELES = ['0 · Sin evidencia', '1 · Señal temprana', '2 · En curso', '3 · Logrado parcialmente', '4 · Logrado'];
+  function nivelFrase(s) {
+    var e = estadoFrase(s), p = sinTildes(s);
+    if (e === 'Proyectado') return 1;
+    if (e === 'En proceso') return 2;
+    if (/(compromiso|comprometi|acordaron|carta)/.test(p)) return 1;
+    return evidenciaDe(s) ? 3 : 2;
+  }
+  var UNID_RE = /(personas|familias|hogares|comunidades|municipios|municipalidades|instituciones|organizaciones|comites|comisiones|escuelas|documentos|planes|mujeres|hombres|jovenes|lideres|lideresas|participantes|docentes|estudiantes|coordinadoras|colred|cocode|modulos|talleres|sesiones|reuniones|diplomas|ninos|ninas|integrantes|brigadistas|voluntarios|aldeas|caserios|quetzales|hectareas)/;
+  function senalesParaInforme() {
+    var lista = lote.slice(), actual = registroActual();
+    if (actual.quePaso) lista.push(actual);
+    if (!lista.length && ultimaEntrada.length) lista = ultimaEntrada.slice();
+    return lista.sort(function (a, b) { return String(a.fechaHecho || '9999').localeCompare(String(b.fechaHecho || '9999')); });
+  }
+  function tabla(cab, filas) {
+    return '<table class="t"><thead><tr>' + cab.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      filas.map(function (f) { return '<tr>' + f.map(function (c) { return '<td>' + (c && c.html ? c.html : esc(c)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+  }
+  function lista(items) { return '<ul>' + items.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>'; }
+  function construirInforme(senales) {
+    var narrativas = S.contexto || senales.map(function (s) { return s.narrativa; }).join('\n');
+    var limpio = prepararTexto(narrativas), plain = numerosADigitos(sinTildes(limpio));
+    var frases = frasesDe(limpio).map(function (s) { return pulir(s.replace(/^(pero|y|entonces|bueno|pues)\s+/i, '')); });
+    var META = /^(la certeza|la contribucion|la dimension|la direccion|el nivel|la evidencia|las evidencias|el actor|los actores|la fuente|la unidad|la cantidad|(si|no) (vale|hay que)|tengo |tenemos |como evidencia|se tomaron|(es|fue) un (avance|retroceso))/;
+    var hechos = frases.filter(function (s) { return !META.test(sinTildes(s)); });
+    var primero = function (k) { return (senales.filter(function (s) { return s[k]; })[0] || {})[k] || ''; };
+    var municipio = primero('municipio') || municipioDe(plain), comunidad = primero('comunidad');
+    var lugar = comunidad ? comunidad + (municipio ? ', ' + municipio : '') : (municipio || 'Chiquimula');
+    var fechas = senales.map(function (s) { return s.fechaHecho; }).filter(Boolean).sort();
+    var conAnio = /\b(19|20)\d{2}\b/.test(limpio);
+    var rango = /\b(\d{1,2}) (?:al|y el|hasta el|-) (\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/.exec(plain);
+    var periodo = rango ? 'Del ' + rango[1] + ' al ' + rango[2] + ' de ' + rango[3] : fechas.length > 1 ? 'Del ' + fechaLarga(fechas[0]) + ' al ' + fechaLarga(fechas[fechas.length - 1]) : fechas.length ? fechaLarga(fechas[0]) : 'Sin fecha en la narrativa';
+    if (fechas.length && !conAnio) periodo += ' (año por confirmar en la fuente)';
+    var hoy = new Date(), p2 = function (n) { return ('0' + n).slice(-2); };
+    var hoyTxt = p2(hoy.getDate()) + '/' + p2(hoy.getMonth() + 1) + '/' + hoy.getFullYear();
+    var autor = (quienRegistra() || {}).n || primero('registradoPor') || 'Sin indicar';
+    var cats = CATS.map(function (c) { var m = frases.filter(function (s) { return c[1].test(sinTildes(s)); }); return { nombre: c[0], frases: m, lectura: c[2] }; }).filter(function (c) { return c.frases.length; });
+    var estados = hechos.map(function (s) { return { s: s, e: estadoFrase(s) }; });
+    var logrados = estados.filter(function (x) { return x.e === 'Logrado'; }).map(function (x) { return x.s; });
+    var proceso = estados.filter(function (x) { return x.e === 'En proceso'; }).map(function (x) { return x.s; });
+    var proyect = estados.filter(function (x) { return x.e === 'Proyectado'; }).map(function (x) { return x.s; });
+    var evid = evidenciaDe(limpio), evidLista = evid ? evid.split('; ') : [];
+    var archivos = []; senales.forEach(function (s) { (s.archivos || []).forEach(function (a) { archivos.push(a.nombre); }); });
+    var direcciones = senales.map(function (s) { return s.direccion; }).filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; });
+    var porQue = primero('porQue'), contrib = primero('contribucion');
+    var subtitulo = 'Cadena de cambio en ' + lugar + ', Chiquimula: ' + minus(corto(primero('queCambio') || primero('quePaso'), 130));
+
+    /* Actores */
+    var actores = [];
+    senales.forEach(function (s) { String(s.quien || '').split(/\s*,\s*/).forEach(function (a) { if (a && actores.map(sinTildes).indexOf(sinTildes(a)) < 0) actores.push(a); }); });
+    var filasActores = actores.map(function (a) {
+      var clave = sinTildes(a).split(/\s+/).filter(function (w) { return w.length > 3; })[0] || sinTildes(a);
+      var fr = frases.filter(function (s) { return sinTildes(s).indexOf(clave) >= 0; })[0] || '';
+      return [a, corto(fr, 170) || '—', puntuar(sinTildes(a), REGLAS_NIVEL).valor || primero('nivel') || '—'];
+    });
+
+    /* Cifras */
+    var cifras = [], usados = {}, m, reND = /(\d[\d.,]*) de (?:las |los )?(\d[\d.,]*) ([a-z]+)/g;
+    var verbo = function (pos, len) {
+      var antes = plain.slice(Math.max(0, pos - 40), pos).split(/\s+/).slice(-3), despues = plain.slice(pos + len, pos + len + 40).split(/\s+/).slice(0, 4);
+      return antes.concat(despues).filter(function (w) { return /^[a-z]{3,}(aron|ieron)$/.test(w); })[0] || '';
+    };
+    var cap = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
+    while ((m = reND.exec(plain))) {
+      if (!UNID_RE.test(m[3])) continue;
+      var n1 = parseFloat(m[1]), n2 = parseFloat(m[2]); if (!n2) continue;
+      usados[m.index] = 1; usados[m.index + m[1].length + 4] = 1;
+      var v = verbo(m.index, m[0].length);
+      cifras.push([cap(corregir(m[3])) + (v ? ' que ' + v : ''), m[1] + ' de ' + m[2] + ' (' + Math.round(n1 * 100 / n2) + ' %)', m[2] + ' de ' + m[2], 'Porcentaje calculado a partir del texto; confirmar la base de cálculo.']);
+    }
+    var reN = new RegExp('(\\d[\\d.,]*) ' + UNID_RE.source, 'g');
+    while ((m = reN.exec(plain))) {
+      if (Object.keys(usados).some(function (k) { return Math.abs(+k - m.index) < 12; })) continue;
+      var v2 = verbo(m.index, m[0].length);
+      cifras.push([cap(corregir(m[2])) + (v2 ? ' que ' + v2 : ''), m[1], '—', primero('fuente') ? 'Fuente: ' + primero('fuente') : 'Dato de la narrativa; confirmar con la fuente.']);
+    }
+    if (!cifras.length && primero('cantidad')) cifras.push([primero('unidad') || 'Dato cuantitativo', primero('cantidad'), '—', primero('fuente') ? 'Fuente: ' + primero('fuente') : 'Dato de la ficha.']);
+
+    /* Cadena de cambio */
+    var filasCadena = senales.length > 1 ? senales.map(function (s, i) {
+      var txt = (s.quePaso || '') + (s.queCambio ? ' ' + s.queCambio : '');
+      return [String(i + 1), etapaDe(txt), corto(conFecha(s.fechaHecho, txt), 260), s.evidencia || '—', estadoFrase(txt)];
+    }) : hechos.slice(0, 10).map(function (s, i) { return [String(i + 1), etapaDe(s), corto(s, 260), evidenciaDe(s) || '—', estadoFrase(s)]; });
+    var redaccion = senales.map(function (s) {
+      return conFecha(s.fechaHecho, String(s.quePaso || '').replace(/\.$/, ''), 'El') + (s.queCambio && sinTildes(s.quePaso || '').indexOf(sinTildes(s.queCambio).slice(0, 30)) < 0 ? '. ' + String(s.queCambio).replace(/\.$/, '') : '') + '.';
+    }).join(' ');
+    var pendNuevos = proceso.concat(proyect).filter(function (s) { return sinTildes(redaccion).indexOf(sinTildes(s).replace(/\.$/, '')) < 0; });
+    if (pendNuevos.length) redaccion += ' Queda pendiente: ' + minus(corto(pendNuevos.join(' '), 260));
+
+    /* Mapa de contribución OE 2 */
+    var filasRI = RIS.map(function (ri) {
+      var fr = frases.filter(function (s) { return ri[1].test(sinTildes(s)); });
+      var niv = fr.length ? Math.max.apply(null, fr.map(nivelFrase)) : 0;
+      return [ri[0], fr.length ? corto(fr[0], 220) : 'La narrativa no aporta información sobre este resultado.', NIVELES[niv]];
+    });
+    var conEvidenciaRI = filasRI.filter(function (f) { return f[2] !== NIVELES[0]; }).length;
+
+    /* Puntos por aclarar y recomendaciones */
+    var puntos = [];
+    if (fechas.length && !conAnio) puntos.push(['Fecha', 'La narrativa no consigna el año.', 'Agregar el año al registro.']);
+    if (!fechas.length) puntos.push(['Fecha', 'La narrativa no indica cuándo ocurrió el hecho.', 'Registrar la fecha exacta del hecho.']);
+    if (/\d de (las |los )?\d/.test(plain)) puntos.push(['Cifras', 'Hay cifras del tipo «N de M» que admiten dos bases de cálculo.', 'Definir la base y reportarla de forma consistente.']);
+    if (logrados.length && (proyect.length || proceso.length)) puntos.push(['Verbos condicionales', 'El texto mezcla lo logrado con lo que se espera lograr.', 'Reportar solo lo verificado como logro.']);
+    if (/(primer |primera |unico|pionero)/.test(plain)) puntos.push(['Hito «primero»', 'No se indica con qué se compara ni quién lo confirma.', 'Verificar con la fuente antes de comunicarlo.']);
+    if (!contrib) puntos.push(['Atribución', 'No se distingue el aporte del proyecto.', 'Documentar la contribución y qué habría ocurrido sin el proyecto.']);
+    if (!evid && !archivos.length) puntos.push(['Evidencia', 'No se menciona medio de verificación.', 'Adjuntar acta, fotografías, lista de asistencia u otro documento.']);
+    if (!actores.length) puntos.push(['Actores', 'No se identifica quién tomó la decisión o la acción.', 'Nombrar al actor y su institución.']);
+    var cer = senales.map(function (s) { return s.certeza; }).filter(Boolean);
+    if (!cer.length || cer.indexOf('Baja') >= 0) puntos.push(['Certeza', 'La certeza es baja o no está definida.', 'Confirmar con un documento o un testimonio directo.']);
+    if (!cifras.length) puntos.push(['Dato cuantitativo', 'No hay cifras de alcance.', 'Registrar a cuántas personas, familias o comunidades alcanza el cambio.']);
+    if (/(\b(eh+|em+|o sea|digamos)\b|\b(\w+) \3\b)/i.test(narrativas)) puntos.push(['Redacción dictada', 'El texto tenía muletillas o palabras repetidas propias del dictado; se depuraron en las fichas.', 'Revisar la redacción antes de citarlo.']);
+    var actorPrincipal = actores[0] || '';
+    var resp = actorPrincipal ? actorPrincipal + ' y equipo MEAL' : 'Equipo MEAL';
+    var recomend = proceso.concat(proyect).slice(0, 4).map(function (s) { return ['Dar seguimiento y definir fecha para: ' + minus(corto(s, 160)), resp, '[Por definir]', 'Pendiente']; })
+      .concat(puntos.map(function (p) { return [p[2], p[0] === 'Atribución' || p[0] === 'Redacción dictada' ? 'Equipo MEAL' : resp, '[Por definir]', 'Pendiente']; }));
+
+    /* Fortalezas y riesgos */
+    var nombresCats = cats.map(function (c) { return c.nombre; });
+    var fortalezas = [];
+    if (evidLista.length || archivos.length) fortalezas.push('Evidencia disponible: ' + evidLista.concat(archivos.length ? [archivos.length + ' archivo(s) adjunto(s)'] : []).join(', ') + '.');
+    if (actores.length > 1) fortalezas.push('Actores identificados con roles definidos (' + actores.length + ').');
+    if (nombresCats.indexOf('Apropiación municipal') >= 0) fortalezas.push('Señal de sostenibilidad: la municipalidad invierte recursos o personal propio.');
+    if (cifras.length) fortalezas.push('La narrativa aporta datos cuantitativos.');
+    if (/^(Directa|Parcial)$/.test(contrib)) fortalezas.push('Se identifica la contribución del proyecto (' + contrib.toLowerCase() + ').');
+    if (!fortalezas.length) fortalezas.push('La narrativa describe un hecho concreto que puede verificarse.');
+    var riesgos = [];
+    if (nombresCats.indexOf('Compromiso formalizado') >= 0) riesgos.push('Un compromiso escrito no garantiza la organización o la acción efectiva.');
+    if (/(temporal|consultor)/.test(plain)) riesgos.push('Dependencia de personal temporal: si termina el contrato, no hay un responsable permanente.');
+    if (/acredit/.test(plain)) riesgos.push('La acreditación es un trámite administrativo que puede demorar los hitos.');
+    if (proceso.length || proyect.length) riesgos.push('Hay pasos pendientes o proyectados sin fecha ni responsable definidos.');
+    if (!evid && !archivos.length) riesgos.push('Sin medio de verificación, el resultado no puede reportarse como logrado.');
+    if (!riesgos.length) riesgos.push('Una sola fuente sin triangulación.');
+
+    var resumen1 = senales.map(function (s) { var t = conFecha(s.fechaHecho, s.quePaso, 'El'); return /[.!?]$/.test(t) ? t : t + '.'; }).join(' ').replace(/\.\s*\./g, '.');
+    var etapas = filasCadena.map(function (f) { return f[1]; }).filter(function (e, i, a) { return e !== 'Hecho' && a.indexOf(e) === i; });
+    subtitulo = 'Cadena de cambio en ' + lugar + ', Chiquimula: ' + (etapas.length > 1 ? 'de la ' + etapas[0].toLowerCase() + ' a la ' + etapas[etapas.length - 1].toLowerCase()
+      : minus(corto(String(primero('quePaso')).replace(/^el \d{1,2} de [a-z]+,?\s*/i, ''), 120)));
+    var resumen2 = senales.map(function (s) { return s.queCambio; }).filter(Boolean).join(' ');
+    var hallazgo = 'el cambio verificable hasta hoy es ' + (logrados.length ? minus(corto(logrados.join(' '), 320)) : 'limitado, porque la narrativa no describe hechos concluidos') +
+      (evidLista.length ? ', respaldado por ' + evidLista.join(', ').toLowerCase() : ', sin un medio de verificación mencionado') + '.' +
+      (proceso.length || proyect.length ? ' ' + corto(proceso.concat(proyect).join(' '), 260) + ' Esto sigue pendiente y debe reportarse como proyección, no como resultado alcanzado.' : '');
+    var decision = 'registrar el resultado como ' + (direcciones.length ? direcciones.join(' / ').toLowerCase() : 'señal por clasificar') + (porQue ? ' (' + minus(porQue) + ')' : '') +
+      ', definir responsables y fechas para lo pendiente, y completar los datos que hoy faltan en la narrativa (sección 7).';
+
+    var concl = [
+      'El resultado más sólido de la narrativa es ' + (nombresCats[0] ? 'la ' + nombresCats[0].toLowerCase().replace(/^la /, '') : 'el hecho descrito') + ': ' + minus(corto(logrados.join(' ') || primero('quePaso'), 300)) + '.',
+      proceso.length || proyect.length ? 'La narrativa mezcla los avances alcanzados con los resultados que aún se espera obtener. Para reflejar con precisión el estado del proceso, es necesario distinguir entre ambos: el avance verificable es lo descrito como logrado, y lo demás debe presentarse como próximos hitos que requieren seguimiento y evidencia.' : 'La narrativa describe hechos concluidos; su valor como resultado depende de contar con la evidencia de respaldo.',
+      'La dirección del cambio se valora como ' + (direcciones.join(' / ').toLowerCase() || 'por definir') + (porQue ? ', porque ' + minus(porQue) : '') + '.',
+      'Para consolidarlo, conviene ' + (recomend.slice(0, 2).map(function (r) { return minus(r[0]); }).join(' y ') || 'documentar la evidencia y dar seguimiento') + '.'
+    ];
+    var preguntas = ['¿Cuál es el estado actual de lo que la narrativa deja pendiente?', '¿Quién es responsable de los siguientes pasos y con qué plazo?',
+      '¿Qué habría ocurrido sin el proyecto? (contribución y escenario contrafactual)', '¿Hay documentos que respalden cada hecho reportado como logrado?',
+      '¿Los actores comunitarios fueron consultados o la iniciativa fue vertical?'].concat(proceso.concat(proyect).slice(0, 3).map(function (s) { return '¿Cuál es el avance de: ' + minus(corto(s, 120)) + '?'; }));
+    var anexos = evidLista.map(function (e) {
+      var k = sinTildes(e).split(/\s+/)[0]; var fr = frases.filter(function (s) { return sinTildes(s).indexOf(k.slice(0, 5)) >= 0; })[0];
+      return [e, corto(fr || '—', 160), 'Existe, según la narrativa'];
+    }).concat(archivos.map(function (a) { return ['Archivo adjunto', a, 'En SharePoint (carpeta Evidencias)']; }))
+      .concat([['Fichas de señal de cambio (' + senales.length + ')', 'Registradas con el Asistente de señales de cambio', 'En el Excel de registros'], ['Cadena de cambio', 'Esquema reconstruido en la sección 5', 'Elaborado en este análisis']]);
+
+    var H = function (t) { return '<h2>' + esc(t) + '</h2>'; }, P = function (t) { return '<p>' + esc(t) + '</p>'; };
+    var html = '<div class="inf">' +
+      '<p class="sup">CRS / GUATEMALA</p><h1>ANÁLISIS CUALITATIVO DE NARRATIVA DE CAMBIO</h1><p class="sub">' + esc(subtitulo) + '</p>' +
+      tabla(['Proyecto / programa', 'Tipo de documento', 'Período de referencia', 'Fecha y versión'], [['Nombre del proyecto: RESURGIR', 'Informe técnico: análisis cualitativo de una narrativa de resultado', periodo, hoyTxt + ' | Versión 1.0 (borrador generado automáticamente)']]) +
+      '<p class="nota">Elaborado por: ' + esc(autor) + '. Este documento se generó automáticamente a partir de ' + senales.length + ' ficha(s) de señal de cambio. Distingue lo logrado de lo pendiente o proyectado; las valoraciones son preliminares y deben validarse con el equipo antes de reportarlas.</p>' +
+      H('1. Resumen ejecutivo') + P(resumen1) + (resumen2 ? P(resumen2) : '') + '<p><b>Hallazgo central:</b> ' + esc(hallazgo) + '</p><p><b>Decisión sugerida:</b> ' + esc(decision) + '</p>' +
+      H('2. Antecedentes y contexto') + P('La narrativa describe ' + (nombresCats.length ? nombresCats.slice(0, 3).join(', ').toLowerCase() : 'un hecho de la gestión local del riesgo') + ' en ' + lugar + '. Los actores que aparecen en el relato son los siguientes.') +
+      (filasActores.length ? tabla(['Actor', 'Rol en la narrativa', 'Nivel'], filasActores) : P('La narrativa no identifica actores.')) +
+      H('3. Objetivo y alcance') + P('Objetivo general: analizar la narrativa de resultado para precisar qué cambió, con qué evidencia y qué falta para consolidarlo.') + P('Objetivos específicos:') +
+      lista(['Identificar actores, decisiones y la cadena causal del cambio.', 'Separar lo logrado, lo que está en proceso y lo proyectado.', 'Detectar vacíos, ambigüedades e inconsistencias de la narrativa.', 'Proponer acciones de verificación y seguimiento.']) +
+      P('Alcance: el análisis cubre la narrativa registrada (' + periodo + ') sobre ' + lugar + '. No incluye información posterior a la narrativa.') +
+      H('4. Metodología y fuentes de información') + P('Fuente: ' + senales.length + ' ficha(s) de señal de cambio registradas con el Asistente, a partir de una narrativa ' + (/dict/i.test(narrativas) ? 'dictada' : 'dictada o escrita') + '. No se contó con entrevistas, observación directa ni acceso a los documentos citados.') +
+      P('Enfoque: análisis cualitativo de contenido con categorías de gestión local del riesgo. Pasos:') +
+      lista(['Depuración de la transcripción (muletillas, repeticiones y ortografía).', 'Segmentación en hechos, cifras, actores, decisiones, evidencias y pendientes.', 'Codificación y agrupación en categorías.', 'Reconstrucción de la cadena de cambio y clasificación de cada eslabón como logrado, en proceso o proyectado.']) +
+      P('Criterio de clasificación: se considera «logrado» solo lo que la narrativa respalda con un hecho o un documento. Lo expresado como intención, compromiso futuro o condicional se clasifica como en proceso o proyectado.') +
+      P('Limitaciones: una sola fuente sin triangulación; clasificación automática por palabras clave' + (fechas.length && !conAnio ? '; el año no está consignado' : '') + '; no hay datos sobre el avance posterior a la narrativa.') +
+      H('5. Resultados principales') + (cifras.length ? tabla(['Indicador / tema', 'Resultado', 'Meta / referencia', 'Observaciones'], cifras) : P('La narrativa no aporta cifras.')) +
+      '<h3>Cadena de cambio</h3>' + tabla(['N.º', 'Etapa', 'Qué ocurrió / qué se espera', 'Evidencia', 'Estado'], filasCadena) +
+      '<table class="t destacado"><tr><td><b>REDACCIÓN PROPUESTA DEL RESULTADO</b><br>' + esc(redaccion) + '</td></tr></table>' +
+      H('6. Mapa de contribución a la cadena de resultados (OE 2)') + P('Cada elemento se califica de 0 a 4 según lo que la narrativa permite sostener. Es una valoración automática y cualitativa, sujeta a validación, y no un porcentaje.') +
+      tabla(NIVELES, [['', '', '', '', '']]) + tabla(['Resultado intermedio', 'Qué muestra la narrativa', 'Avance (0 a 4)'], filasRI) +
+      P('La narrativa aporta evidencia sobre ' + conEvidenciaRI + ' de los 3 resultados intermedios del OE 2. Es la lectura de una sola narrativa y no necesariamente el avance del proyecto.') +
+      H('7. Hallazgos y análisis') + '<h3>Categorías y códigos emergentes</h3>' +
+      (cats.length ? tabla(['Categoría', 'Evidencia en la narrativa', 'Lectura analítica'], cats.map(function (c) { return [c.nombre, '«' + corto(c.frases[0], 180) + '»', c.lectura]; })) : P('No se identificaron categorías.')) +
+      '<h3>Lo que cambió, por niveles</h3>' + tabla(['Nivel', 'Cambio', 'Estado'], [
+        ['Logrado', corto(logrados.join(' '), 360) || '—', logrados.length ? (evidLista.length ? 'Respaldado: ' + evidLista.join(', ') : 'Sin documento mencionado') : '—'],
+        ['En proceso', corto(proceso.join(' '), 360) || '—', proceso.length ? 'Sin evidencia de avance' : '—'],
+        ['Proyectado', corto(proyect.join(' '), 360) || '—', proyect.length ? 'Condicionado' : '—']]) +
+      '<h3>Puntos por aclarar</h3>' + (puntos.length ? tabla(['Aspecto', 'Observación', 'Cómo aclararlo'], puntos) : P('No se detectaron puntos por aclarar.')) +
+      '<h3>Fortalezas y riesgos</h3><p><b>Fortalezas</b></p>' + lista(fortalezas) + '<p><b>Riesgos</b></p>' + lista(riesgos) +
+      H('8. Conclusiones') + concl.map(P).join('') +
+      H('9. Recomendaciones y seguimiento') + P('Los responsables son una propuesta para validar con los equipos involucrados.') +
+      tabla(['Acción recomendada', 'Responsable (propuesto)', 'Fecha prevista', 'Estado'], recomend) +
+      H('10. Anexos y medios de verificación') + tabla(['Medio de verificación', 'Descripción', 'Disponibilidad'], anexos) +
+      '<h3>Preguntas de verificación sugeridas</h3>' + lista(preguntas) + '</div>';
+    return { html: html, titulo: 'Análisis cualitativo de narrativa de cambio — ' + lugar, subtitulo: subtitulo, periodo: periodo, municipio: municipio, autor: autor, n: senales.length, resumen: corto(resumen1 + ' ' + hallazgo, 600) };
+  }
+  var CSS_INF = '.inf{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1a1a1a;line-height:1.4}.inf .sup{color:#0B4A9E;font-weight:bold;letter-spacing:.08em;margin:0}' +
+    '.inf h1{color:#0B4A9E;font-size:20pt;margin:4px 0}.inf .sub{color:#52647C;font-size:12pt;margin:0 0 10px}.inf h2{color:#0B4A9E;font-size:14pt;border-bottom:2px solid #F28C13;padding-bottom:3px;margin:18px 0 8px}' +
+    '.inf h3{color:#10294A;font-size:12pt;margin:14px 0 6px}.inf p{margin:6px 0}.inf .nota{background:#F1F5FB;padding:8px 10px;font-size:10pt;color:#52647C}' +
+    '.inf table.t{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:10pt}.inf table.t th{background:#0B4A9E;color:#fff;text-align:left;padding:5px 6px;border:1px solid #0B4A9E}' +
+    '.inf table.t td{border:1px solid #C9D6E8;padding:5px 6px;vertical-align:top}.inf table.destacado td{background:#E4F2DA;border:1px solid #5FA51F}.inf ul{margin:4px 0 8px 18px;padding:0}';
+  var informeActual = null;
+  function abrirInforme() {
+    var senales = senalesParaInforme();
+    if (!senales.length) { setStatus('#save-status', 'Primero cuenta al menos una señal: el informe se arma a partir de las fichas de esta entrada.', true); return; }
+    informeActual = construirInforme(senales);
+    $('#inf-cuerpo').innerHTML = '<style>' + CSS_INF + '</style>' + informeActual.html;
+    $('#inf-estado').textContent = 'Informe de ' + informeActual.n + ' señal(es). Revísalo: las valoraciones son automáticas y deben validarse.';
+    $('#inf-guardar').disabled = false;
+    $('#modal-informe').hidden = false;
+  }
+  function docWord(inf) {
+    return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + esc(inf.titulo) +
+      '</title><style>@page{size:21cm 29.7cm;margin:2cm}' + CSS_INF + '</style></head><body>' + inf.html + '</body></html>';
+  }
+  function nombreInforme(inf) {
+    var d = new Date(); var lugar = sinTildes(inf.municipio || 'Chiquimula').replace(/[^a-z0-9]+/g, '_');
+    return 'Informe_analisis_' + lugar + '_' + iso(d) + '_' + d.getTime().toString(36).toUpperCase() + '.doc';
+  }
+  function descargarInforme() {
+    if (!informeActual) return;
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + docWord(informeActual)], { type: 'application/msword' }));
+    a.download = nombreInforme(informeActual); document.body.append(a); a.click(); a.remove();
+  }
+  async function guardarInforme() {
+    if (!informeActual) return;
+    if (!quienRegistra()) { $('#inf-estado').textContent = 'Elige quién registra en «Registrada por» antes de guardar el informe.'; return; }
+    var btn = $('#inf-guardar'); btn.disabled = true; $('#inf-estado').textContent = 'Guardando el informe…';
+    var nombre = nombreInforme(informeActual), d = new Date(), p2 = function (n) { return ('0' + n).slice(-2); };
+    var b64 = btoa(unescape(encodeURIComponent('﻿' + docWord(informeActual))));
+    var texto = ($('#inf-cuerpo').innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, 30000);
+    try {
+      var r = await fetch(FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        clave: CLAVE, tipo: 'informe', nombre: nombre, contenido: b64,
+        'ID': 'INF-' + d.getTime().toString(36).toUpperCase(), 'Fecha': iso(d) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()),
+        'Elaborado por': quienRegistra().n, 'Titulo': informeActual.titulo, 'Periodo': informeActual.periodo, 'Municipio': informeActual.municipio || '',
+        'Senales': String(informeActual.n), 'Resumen': informeActual.resumen, 'Informe': texto, 'Archivo': nombre }) });
+      if (!r.ok) throw new Error('flujo');
+      $('#inf-estado').textContent = 'Informe guardado: el archivo quedó en la carpeta Informes de SharePoint y el texto en la hoja «Informes» del Excel.';
+      flash('Informe guardado en SharePoint y en el Excel.');
+    } catch (e) {
+      btn.disabled = false; $('#inf-estado').textContent = 'No se pudo guardar el informe. Revisa tu conexión e intenta de nuevo; también puedes descargarlo en Word.';
+    }
   }
   function limpiar(keepStatus) {
     resetState(); $('#narr').value = ''; $('#resp').value = '';
@@ -1516,7 +2122,7 @@ a.btn { text-decoration: none; }
       var open = false;
       var what = h('p', { class: 'what', text: r.quePaso || '' });
       var det = h('dl', { class: 'det', hidden: true });
-      var rows = [['Fecha del hecho', fmtISO(r.fechaHecho)], ['¿Quién actuó?', [r.quien, r.nivel, r.nivel === 'Comunitario' ? r.comunidad : ''].filter(Boolean).join(' · ')], ['¿Qué cambió?', r.queCambio], ['Por qué esa dirección', r.porQue], ['Contribución', r.contribucion],
+      var rows = [['Fecha del hecho', fmtISO(r.fechaHecho)], ['¿Quién actuó?', [r.quien, r.nivel, /^(Municipal|Comunitario)$/.test(r.nivel) ? r.municipio : '', r.nivel === 'Comunitario' ? r.comunidad : ''].filter(Boolean).join(' · ')], ['¿Qué cambió?', r.queCambio], ['Por qué esa dirección', r.porQue], ['Contribución', r.contribucion],
         ['Evidencia', r.evidencia], ['Certeza', r.certeza], ['Para profundizar', r.profundizar], ['Dato cuantitativo', [r.cantidad, r.unidad, r.fuente ? '(' + r.fuente + ')' : ''].filter(Boolean).join(' ')], ['Narrativa original', r.narrativa]];
       rows.forEach(function (x) { if (x[1]) { det.append(h('dt', { text: x[0] }), h('dd', { text: x[1] })); } });
       var arch = Array.isArray(r.archivos) ? r.archivos.filter(function (a) { return a && blobUrl(a.id); }) : [];
@@ -1553,12 +2159,12 @@ a.btn { text-decoration: none; }
   function csvCell(v) { v = v == null ? '' : String(v); return /[",\r\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   async function descargar() {
     var list = allRecords(); if (!list.length) return;
-    var head = ['Fecha del hecho', 'Guardada el', 'Registrada por', 'Cargo', 'Componente', '¿Qué pasó?', '¿Quién actuó?', 'Nivel', 'Comunidad', '¿Qué cambió?', 'Dimensión', 'Dirección', 'Por qué la dirección', 'Contribución del proyecto', 'Evidencia', 'Archivos de evidencia', 'Certeza', 'Para profundizar', 'Cantidad', 'Unidad', 'Fuente del dato', 'Criterios cumplidos (de 8)', 'Narrativa original'];
+    var head = ['Fecha del hecho', 'Guardada el', 'Registrada por', 'Cargo', 'Componente', '¿Qué pasó?', '¿Quién actuó?', 'Nivel', 'Municipio', 'Comunidad', '¿Qué cambió?', 'Dimensión', 'Dirección', 'Por qué la dirección', 'Contribución del proyecto', 'Evidencia', 'Archivos de evidencia', 'Certeza', 'Para profundizar', 'Cantidad', 'Unidad', 'Fuente del dato', 'Criterios cumplidos (de 8)', 'Narrativa original'];
     var lines = [head.map(csvCell).join(',')];
     list.slice().reverse().forEach(function (r) {
       var ok = criterios(r, r.hechoObservable).filter(function (c) { return c.ok; }).length;
       var links = (Array.isArray(r.archivos) ? r.archivos : []).map(function (a) { var u = a && blobUrl(a.id); return u ? location.origin + u : ''; }).filter(Boolean).join(' ');
-      lines.push([r.fechaHecho, new Date(r.createdAt).toISOString().slice(0, 10), r.registradoPor, r.registradoCargo, r.registradoComponente, r.quePaso, r.quien, r.nivel, r.nivel === 'Comunitario' ? r.comunidad : '', r.queCambio, r.dimension, r.direccion, r.porQue, r.contribucion, r.evidencia, links, r.certeza, r.profundizar, r.cantidad, r.unidad, r.fuente, ok, r.narrativa].map(csvCell).join(','));
+      lines.push([r.fechaHecho, new Date(r.createdAt).toISOString().slice(0, 10), r.registradoPor, r.registradoCargo, r.registradoComponente, r.quePaso, r.quien, r.nivel, /^(Municipal|Comunitario)$/.test(r.nivel) ? r.municipio : '', r.nivel === 'Comunitario' ? r.comunidad : '', r.queCambio, r.dimension, r.direccion, r.porQue, r.contribucion, r.evidencia, links, r.certeza, r.profundizar, r.cantidad, r.unidad, r.fuente, ok, r.narrativa].map(csvCell).join(','));
     });
     var data = '﻿sep=,\r\n' + lines.join('\r\n');
     var nombreCsv = 'senales-de-cambio-' + new Date().toISOString().slice(0, 10) + '.csv';
@@ -1600,6 +2206,15 @@ a.btn { text-decoration: none; }
   $('#narr').addEventListener('input', updateNarr);
   $('#resp').addEventListener('input', vivoResp);
   $('#cuantas').addEventListener('change', function () { if (cuantas() < lote.length + 1) $('#cuantas').value = String(lote.length + 1); pintarLote(); });
+  $('#btn-dividir').addEventListener('click', intentarDividir);
+  $('#btn-unir').addEventListener('click', unirDeNuevo);
+  $('#narr').addEventListener('change', function () { intentarDividir(); });
+  $('#btn-informe').addEventListener('click', abrirInforme);
+  $('#inf-cerrar').addEventListener('click', function () { $('#modal-informe').hidden = true; });
+  $('#modal-informe').addEventListener('click', function (e) { if (e.target === e.currentTarget) e.currentTarget.hidden = true; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('#modal-informe').hidden = true; });
+  $('#inf-word').addEventListener('click', descargarInforme);
+  $('#inf-guardar').addEventListener('click', guardarInforme);
   $('#btn-lote-clear').addEventListener('click', function () { lote = []; pintarLote(); flash('Se descartaron las señales que estaban listas.'); });
   $('#por-nombre').addEventListener('input', renderReview);
   $('#por').addEventListener('change', function () { pintarQuien(); renderReview(); if ($('#por').value === '__otra') $('#por-nombre').focus(); try { localStorage.setItem('senales-por', $('#por').value.trim()); } catch (e) {} });
@@ -1617,7 +2232,9 @@ a.btn { text-decoration: none; }
     /* Los archivos adjuntos a una ficha que se descarta no quedan guardados. */
     S.archivos.forEach(function (a) { if (assetsApi) assetsApi.delete(a.id).catch(function () {}); });
     setStatus('#evid-status', '');
-    limpiar(false);
+    if (grupoDiv) { lote = lote.filter(function (r) { return !r.auto; }); grupoDiv = null; $('#cuantas').value = String(Math.min(10, lote.length + 1)); }
+    S.contexto = '';
+    limpiar(false); pintarLote();
   });
   $('#btn-save').addEventListener('click', guardar);
   $('#btn-csv').addEventListener('click', descargar);
@@ -1656,7 +2273,7 @@ a.btn { text-decoration: none; }
     d.onState(function (e) {
       var antes = dictState; dictState = e.state; paintMic();
       /* Al terminar de dictar la narrativa, la ficha se llena sola. */
-      if (e.state === 'idle' && antes !== 'idle' && dictTarget && $('#narr').value.trim().length >= 25) estructurar();
+      if (e.state === 'idle' && antes !== 'idle' && dictTarget && $('#narr').value.trim().length >= 25) { if (!(dictTarget.id === 'narr' && intentarDividir())) estructurar(); }
     });
     d.onPartial(function (e) { if (dictTarget) $('#partial-' + dictTarget.id).textContent = e.text ? 'Escuchando: ' + e.text : ''; });
     d.onFinal(function (e) {
