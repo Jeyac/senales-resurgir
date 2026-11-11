@@ -296,7 +296,7 @@ a.btn { text-decoration: none; }
       <span class="hint" id="inf-estado">Revisa el informe: las valoraciones son automáticas y deben validarse.</span>
       <div class="actions" style="margin-top:0">
         <button class="btn" id="inf-word" type="button">Descargar Word</button>
-        <button class="btn primary" id="inf-guardar" type="button">Guardar en SharePoint y en el Excel</button>
+        <button class="btn primary" id="inf-guardar" type="button" hidden>Guardar ahora</button>
       </div>
     </div>
   </div>
@@ -473,8 +473,8 @@ a.btn { text-decoration: none; }
           <p class="hint" id="por-info" style="margin-top:6px"></p>
           <p class="status" id="save-status" role="status" aria-live="polite"></p>
           <div class="actions" style="margin-top:4px">
-            <button class="btn" id="btn-informe" type="button">Generar informe de análisis</button>
-            <span class="hint">Arma un informe con la estructura del análisis de San Jacinto, a partir de las señales de esta entrada.</span>
+            <button class="btn" id="btn-informe" type="button">Generar y guardar informe de análisis</button>
+            <span class="hint">Arma un informe con la estructura del análisis de San Jacinto a partir de las señales de esta entrada y lo guarda solo en SharePoint y en el Excel.</span>
           </div>
         </div>
       </div>
@@ -2020,9 +2020,10 @@ a.btn { text-decoration: none; }
     if (!senales.length) { setStatus('#save-status', 'Primero cuenta al menos una señal: el informe se arma a partir de las fichas de esta entrada.', true); return; }
     informeActual = construirInforme(senales);
     $('#inf-cuerpo').innerHTML = '<style>' + CSS_INF + '</style>' + informeActual.html;
-    $('#inf-estado').textContent = 'Informe de ' + informeActual.n + ' señal(es). Revísalo: las valoraciones son automáticas y deben validarse.';
-    $('#inf-guardar').disabled = false;
+    $('#inf-estado').textContent = 'Informe de ' + informeActual.n + ' señal(es). Guardándolo automáticamente…';
+    $('#inf-guardar').hidden = true;
     $('#modal-informe').hidden = false;
+    guardarInforme();
   }
   function docWord(inf) {
     return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>' + esc(inf.titulo) +
@@ -2040,8 +2041,9 @@ a.btn { text-decoration: none; }
   }
   async function guardarInforme() {
     if (!informeActual) return;
-    if (!quienRegistra()) { $('#inf-estado').textContent = 'Elige quién registra en «Registrada por» antes de guardar el informe.'; return; }
-    var btn = $('#inf-guardar'); btn.disabled = true; $('#inf-estado').textContent = 'Guardando el informe…';
+    var btn = $('#inf-guardar');
+    if (!quienRegistra()) { btn.hidden = false; btn.disabled = false; $('#inf-estado').textContent = 'Elige quién registra en «Registrada por» y pulsa «Guardar ahora».'; return; }
+    btn.disabled = true; $('#inf-estado').textContent = 'Guardando el informe…';
     var nombre = nombreInforme(informeActual), d = new Date(), p2 = function (n) { return ('0' + n).slice(-2); };
     var b64 = btoa(unescape(encodeURIComponent('﻿' + docWord(informeActual))));
     var texto = ($('#inf-cuerpo').innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, 30000);
@@ -2052,10 +2054,11 @@ a.btn { text-decoration: none; }
         'Elaborado por': quienRegistra().n, 'Titulo': informeActual.titulo, 'Periodo': informeActual.periodo, 'Municipio': informeActual.municipio || '',
         'Senales': String(informeActual.n), 'Resumen': informeActual.resumen, 'Informe': texto, 'Archivo': nombre }) });
       if (!r.ok) throw new Error('flujo');
-      $('#inf-estado').textContent = 'Informe guardado: el archivo quedó en la carpeta Informes de SharePoint y el texto en la hoja «Informes» del Excel.';
+      btn.hidden = true;
+      $('#inf-estado').textContent = 'Informe guardado automáticamente: el archivo quedó en la carpeta Informes de SharePoint y el texto en la hoja «Informes» del Excel.';
       flash('Informe guardado en SharePoint y en el Excel.');
     } catch (e) {
-      btn.disabled = false; $('#inf-estado').textContent = 'No se pudo guardar el informe. Revisa tu conexión e intenta de nuevo; también puedes descargarlo en Word.';
+      btn.hidden = false; btn.disabled = false; $('#inf-estado').textContent = 'No se pudo guardar el informe. Revisa tu conexión y pulsa «Guardar ahora»; también puedes descargarlo en Word.';
     }
   }
   function limpiar(keepStatus) {
