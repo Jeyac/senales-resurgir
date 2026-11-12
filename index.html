@@ -4,6 +4,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0B3D91">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+.sync { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: #E8F1FF; color: #0B3D91; font-weight: 600; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.sync.off { background: #FFF3E0; color: #7A3E00; }
+.tag.pend { background: #FFF3E0; color: #7A3E00; }
+</style>
 <style>
 /* Concepto: el recorrido de Resurgir. Tres estaciones con los tres círculos del logo (casa azul, personas naranja,
    brote verde): contar la señal, responder lo que falta y revisar la ficha, que "brota" a medida que se completa. */
@@ -327,6 +335,11 @@ a.btn { text-decoration: none; }
       <path class="w3" d="M0 48 C200 30 350 62 600 46 S1000 30 1200 50 V60 H0Z"/>
     </svg>
   </header>
+
+  <div class="sync" id="sync" hidden role="status" aria-live="polite">
+    <span id="sync-txt"></span>
+    <button class="btn small" id="btn-sync" type="button" hidden>Enviar ahora</button>
+  </div>
 
   <div class="bar">
     <nav class="tabs" role="tablist" aria-label="Secciones">
@@ -974,15 +987,14 @@ a.btn { text-decoration: none; }
   async function probarClave(k, callado) {
     var ok = false;
     try { ok = (await sha(k)) === KEY_HASH; } catch (e) {}
-    if (ok) { CLAVE = k; try { sessionStorage.setItem('senales-clave', k); } catch (e) {} document.querySelector('#gate').hidden = true; }
+    if (ok) { CLAVE = k; try { sessionStorage.setItem('senales-clave', k); } catch (e) {} document.querySelector('#gate').hidden = true; setTimeout(function () { pintarSync(); sincronizar(); }, 0); }
     else if (!callado) document.querySelector('#gate-msg').textContent = 'La clave no coincide. Revísala e intenta de nuevo.';
   }
   async function enviarAFlujo(rec) {
     var ok = criterios(rec, rec.hechoObservable).filter(function (c) { return c.ok; }).length;
     var d = new Date(rec.createdAt), p2 = function (n) { return ('0' + n).slice(-2); };
     var fila = {
-      clave: CLAVE,
-      'ID': 'S-' + rec.createdAt.toString(36).toUpperCase(),
+      'ID': idSenal(rec),
       'Guardada el': d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()),
       'Fecha del hecho': rec.fechaHecho, 'Registrada por': rec.registradoPor, 'Cargo': rec.registradoCargo, 'Componente': rec.registradoComponente,
       'Que paso': rec.quePaso, 'Quien actuo': rec.quien, 'Nivel': rec.nivel, 'Que cambio': rec.queCambio,
@@ -992,8 +1004,7 @@ a.btn { text-decoration: none; }
       'Certeza': rec.certeza, 'Para profundizar': rec.profundizar, 'Cantidad': rec.cantidad, 'Unidad': rec.unidad, 'Fuente del dato': rec.fuente,
       'Criterios cumplidos': String(ok), 'Narrativa original': rec.narrativa
     };
-    var r = await fetch(FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fila) });
-    if (!r.ok) throw { code: 'flujo_' + r.status };
+    return enviarOEsperar(fila, 'la señal «' + String(rec.quePaso || '').slice(0, 60) + '»');
   }
 
   /* ---------- Datos fijos ---------- */
@@ -1095,6 +1106,95 @@ a.btn { text-decoration: none; }
     var el = $(id); el.textContent = msg || '';
     var box = id === '#est-status' ? el.parentNode : el;
     box.className = 'status' + (isErr ? ' err' : '');
+  }
+
+  /* ---------- Sin internet: lo que se guarda espera en este dispositivo y se envía solo al volver la conexión ---------- */
+  var outDb = null, sincronizando = false, pendientesN = 0;
+  function abrirCola() {
+    if (outDb) return Promise.resolve(outDb);
+    return new Promise(function (res, rej) {
+      try {
+        var rq = indexedDB.open('senales-cola', 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore('cola', { keyPath: 'id', autoIncrement: true }); };
+        rq.onsuccess = function () { outDb = rq.result; res(outDb); };
+        rq.onerror = function () { rej(rq.error); };
+      } catch (e) { rej(e); }
+    });
+  }
+  function colaOp(modo, fn) {
+    return abrirCola().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction('cola', modo), r = fn(tx.objectStore('cola'));
+        tx.oncomplete = function () { res(r && r.result); }; tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+  function encolar(body, etiqueta) { return colaOp('readwrite', function (st) { return st.add({ body: body, etiqueta: etiqueta, creado: Date.now() }); }); }
+  function listarCola() { return colaOp('readonly', function (st) { return st.getAll(); }); }
+  function quitarDeCola(id) { return colaOp('readwrite', function (st) { return st.delete(id); }); }
+  function esFalloDeRed(e) { return !navigator.onLine || !e || e.name === 'TypeError' || e.name === 'AbortError'; }
+  async function postFlujo(body) {
+    var r = await fetch(FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ clave: CLAVE }, body)) });
+    if (!r.ok) throw { code: 'flujo_' + r.status };
+  }
+  /* Devuelve true si quedó en espera (sin internet) y false si ya se envió. Otros errores del flujo se propagan. */
+  async function enviarOEsperar(body, etiqueta) {
+    if (!navigator.onLine) { await encolar(body, etiqueta); pintarSync(); return true; }
+    try { await postFlujo(body); return false; }
+    catch (e) {
+      if (!esFalloDeRed(e)) throw e;
+      await encolar(body, etiqueta); pintarSync(); return true;
+    }
+  }
+  function plural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
+  async function pintarSync(msg) {
+    try { pendientesN = (await listarCola()).length; } catch (e) { pendientesN = 0; }
+    var el = $('#sync'), off = !navigator.onLine;
+    el.hidden = !off && !pendientesN && !msg;
+    el.className = 'sync' + (off ? ' off' : '');
+    $('#sync-txt').textContent = msg || (off
+      ? 'Sin internet. Puedes seguir registrando: ' + (pendientesN ? plural(pendientesN, 'envío espera', 'envíos esperan') + ' y se mandarán' : 'todo se enviará') + ' solo al volver la conexión.'
+      : plural(pendientesN, 'envío pendiente', 'envíos pendientes') + ' de sincronizar con SharePoint.');
+    $('#btn-sync').hidden = off || !pendientesN || !!msg;
+  }
+  async function sincronizar() {
+    if (sincronizando || !navigator.onLine || !CLAVE) return;
+    sincronizando = true;
+    var hechos = 0, rechazados = [];
+    try {
+      var cola = (await listarCola()).sort(function (a, b) { return a.creado - b.creado; });
+      if (!cola.length) return;
+      pintarSync('Sincronizando ' + plural(cola.length, 'envío', 'envíos') + ' con SharePoint…');
+      for (var i = 0; i < cola.length; i++) {
+        try { await postFlujo(cola[i].body); await quitarDeCola(cola[i].id); hechos++; }
+        catch (e) {
+          if (esFalloDeRed(e)) break;
+          /* El flujo lo rechazó: no bloquea a los demás, pero se avisa. */
+          await quitarDeCola(cola[i].id); rechazados.push(cola[i].etiqueta || 'un envío');
+        }
+      }
+    } catch (e) {} finally {
+      sincronizando = false;
+      await marcarSincronizados();
+      pintarSync();
+      if (hechos) flash('Se ' + (hechos === 1 ? 'envió 1 registro pendiente' : 'enviaron ' + hechos + ' registros pendientes') + ' a SharePoint.');
+      if (rechazados.length) setStatus('#save-status', 'SharePoint rechazó: ' + rechazados.join('; ') + '. Vuelve a registrarlo.', true);
+    }
+  }
+  /* Las señales de este dispositivo recuerdan si ya llegaron al Excel. */
+  async function marcarSincronizados() {
+    var enEspera = {};
+    try { (await listarCola()).forEach(function (x) { if (x.body && x.body.ID) enEspera[x.body.ID] = true; }); } catch (e) {}
+    var cambio = false;
+    localRecords.forEach(function (r) { var p = !!enEspera[idSenal(r)]; if (!!r.pendiente !== p) { r.pendiente = p; cambio = true; } });
+    if (cambio) { guardarLocales(); renderRecords(); }
+  }
+  function idSenal(rec) { return 'S-' + rec.createdAt.toString(36).toUpperCase(); }
+  function guardarLocales() {
+    try { localStorage.setItem('senales-locales', JSON.stringify(localRecords.slice(0, 300))); } catch (e) {}
+  }
+  function cargarLocales() {
+    try { var l = JSON.parse(localStorage.getItem('senales-locales') || '[]'); if (Array.isArray(l)) localRecords = l; } catch (e) {}
   }
 
   /* ---------- Ficha ---------- */
@@ -1219,14 +1319,13 @@ a.btn { text-decoration: none; }
           fr.onload = function () { res(String(fr.result).split(',')[1] || ''); }; fr.onerror = rej; fr.readAsDataURL(file);
         });
         var destino = Date.now().toString(36).toUpperCase() + '-' + nombre.replace(/[\\\/:*?"<>|#%&{}~]+/g, '_');
-        var r = await fetch(FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: CLAVE, tipo: 'archivo', nombre: destino, contenido: b64 }) });
-        if (!r.ok) throw { code: 'flujo_' + r.status };
+        var espera = await enviarOEsperar({ tipo: 'archivo', nombre: destino, contenido: b64 }, 'el archivo ' + destino);
         S.archivos.push({ id: 'sp-' + destino, nombre: destino, tipo: file.type || '' });
         var fr2 = fragmento(destino);
         tocarEvidencia(S.ficha.evidencia ? S.ficha.evidencia + '; ' + fr2 : fr2);
-        setStatus('#evid-status', 'Archivo enviado a la carpeta Evidencias de SharePoint.');
+        setStatus('#evid-status', espera ? 'Sin internet: el archivo quedó guardado en este dispositivo y se subirá a Evidencias al volver la conexión.' : 'Archivo enviado a la carpeta Evidencias de SharePoint.');
       } catch (e) {
-        setStatus('#evid-status', 'No se pudo subir ' + nombre + '. Revisa tu conexión a internet e intenta de nuevo.', true);
+        setStatus('#evid-status', 'No se pudo subir ' + nombre + '. Intenta de nuevo.', true);
       }
       renderArchivos();
     }
@@ -1746,24 +1845,31 @@ a.btn { text-decoration: none; }
       return;
     }
     var todos = lote.concat([rec]).sort(function (a, b) { return String(a.fechaHecho || '9999').localeCompare(String(b.fechaHecho || '9999')) || a.createdAt - b.createdAt; });
-    var enviados = [];
+    var enviados = [], enEspera = 0;
     S.saving = true; renderReview(); setStatus('#save-status', total > 1 ? 'Guardando ' + total + ' señales…' : 'Guardando…');
     try {
-      for (var i = 0; i < todos.length; i++) { await enviarAFlujo(todos[i]); todos[i].id = 'local-' + todos[i].createdAt; localRecords.unshift(todos[i]); enviados.push(todos[i]); }
+      for (var i = 0; i < todos.length; i++) {
+        var espera = await enviarAFlujo(todos[i]);
+        todos[i].id = 'local-' + todos[i].createdAt; todos[i].pendiente = !!espera; if (espera) enEspera++;
+        localRecords.unshift(todos[i]); enviados.push(todos[i]);
+      }
+      guardarLocales();
       ultimaEntrada = todos.slice();
       lote = []; grupoDiv = null; S.contexto = '';
       renderRecords();
-      flash(total > 1 ? 'Se enviaron las ' + total + ' señales al registro de Resurgir en SharePoint.' : 'Señal enviada al registro de Resurgir en SharePoint.');
+      flash(enEspera ? 'Sin internet: ' + (total > 1 ? 'las ' + total + ' señales quedaron guardadas en este dispositivo y se enviarán solas' : 'la señal quedó guardada en este dispositivo y se enviará sola') + ' al volver la conexión.'
+        : total > 1 ? 'Se enviaron las ' + total + ' señales al registro de Resurgir en SharePoint.' : 'Señal enviada al registro de Resurgir en SharePoint.');
       $('#cuantas').value = '1'; pintarLote();
       limpiar(true);
-      setStatus('#save-status', 'Guardado. Si quieres, genera ahora el informe de análisis de lo que acabas de registrar.');
+      setStatus('#save-status', (enEspera ? 'Guardado en este dispositivo; se sincronizará con SharePoint cuando haya internet.' : 'Guardado.') + ' Si quieres, genera ahora el informe de análisis de lo que acabas de registrar.');
       try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     } catch (e) {
       /* Quedan pendientes solo las que no se enviaron: una vuelve a la ficha y las demás a la lista. */
       var faltan = todos.filter(function (x) { return enviados.indexOf(x) < 0; });
       if (enviados.length && faltan.length) { lote = faltan.slice(1); cargarRegistro(faltan[0]); }
       else lote = faltan.filter(function (x) { return x !== rec; });
-      var c = e && e.code, msg = 'No se pudo enviar el registro. Revisa tu conexión a internet e intenta de nuevo; la ficha sigue aquí.';
+      guardarLocales();
+      var c = e && e.code, msg = 'No se pudo enviar el registro (' + (c || 'error') + '). Intenta de nuevo; la ficha sigue aquí.';
       if (c === 'invalid_argument') msg = 'No tienes permiso para guardar en el registro compartido. Se necesita el rol de Colaborador o superior.';
       else if (c === 'quota_exceeded') msg = 'El registro compartido está lleno. Avisa a quien administra la página.';
       else if (c === 'revoked') msg = 'Tu acceso al registro cambió. Recarga la página.';
@@ -2048,17 +2154,18 @@ a.btn { text-decoration: none; }
     var b64 = btoa(unescape(encodeURIComponent('﻿' + docWord(informeActual))));
     var texto = ($('#inf-cuerpo').innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, 30000);
     try {
-      var r = await fetch(FLOW_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        clave: CLAVE, tipo: 'informe', nombre: nombre, contenido: b64,
+      var espera = await enviarOEsperar({
+        tipo: 'informe', nombre: nombre, contenido: b64,
         'ID': 'INF-' + d.getTime().toString(36).toUpperCase(), 'Fecha': iso(d) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()),
         'Elaborado por': quienRegistra().n, 'Titulo': informeActual.titulo, 'Periodo': informeActual.periodo, 'Municipio': informeActual.municipio || '',
-        'Senales': String(informeActual.n), 'Resumen': informeActual.resumen, 'Informe': texto, 'Archivo': nombre }) });
-      if (!r.ok) throw new Error('flujo');
+        'Senales': String(informeActual.n), 'Resumen': informeActual.resumen, 'Informe': texto, 'Archivo': nombre }, 'el informe ' + nombre);
       btn.hidden = true;
-      $('#inf-estado').textContent = 'Informe guardado automáticamente: el archivo quedó en la carpeta Informes de SharePoint y el texto en la hoja «Informes» del Excel.';
-      flash('Informe guardado en SharePoint y en el Excel.');
+      $('#inf-estado').textContent = espera
+        ? 'Sin internet: el informe quedó guardado en este dispositivo y se enviará solo a SharePoint y al Excel al volver la conexión. También puedes descargarlo en Word.'
+        : 'Informe guardado automáticamente: el archivo quedó en la carpeta Informes de SharePoint y el texto en la hoja «Informes» del Excel.';
+      flash(espera ? 'Informe guardado en este dispositivo; se enviará al volver internet.' : 'Informe guardado en SharePoint y en el Excel.');
     } catch (e) {
-      btn.hidden = false; btn.disabled = false; $('#inf-estado').textContent = 'No se pudo guardar el informe. Revisa tu conexión y pulsa «Guardar ahora»; también puedes descargarlo en Word.';
+      btn.hidden = false; btn.disabled = false; $('#inf-estado').textContent = 'No se pudo guardar el informe. Pulsa «Guardar ahora» para reintentar; también puedes descargarlo en Word.';
     }
   }
   function limpiar(keepStatus) {
@@ -2107,7 +2214,7 @@ a.btn { text-decoration: none; }
     var all = allRecords(), list = all.filter(coincide), host = $('#reclist'); host.textContent = '';
     $('#count').textContent = all.length ? '(' + all.length + ')' : '';
     $('#btn-csv').disabled = !all.length;
-    $('#regs-hint').textContent = 'Aquí ves lo que enviaste desde este dispositivo en esta sesión. El registro completo del equipo está en el Excel «Registros senales de cambio», en Teams: TM-RESURGIR › General › MEAL › Registros asistente.';
+    $('#regs-hint').textContent = 'Aquí ves lo que registraste desde este dispositivo (también sin internet). El registro completo del equipo está en el Excel «Registros senales de cambio», en Teams: TM-RESURGIR › General › MEAL › Registros asistente.';
     if (dbApi && !loadedOnce && !dbErr) setStatus('#regs-status', 'Cargando registros…');
     else if (dbErr) setStatus('#regs-status', 'No se pudo leer el registro compartido (' + dbErr + ').', true);
     else setStatus('#regs-status', '');
@@ -2150,7 +2257,7 @@ a.btn { text-decoration: none; }
       }
       card.append(
         h('div', { class: 'rec-top' },
-          h('div', { class: 'tags' }, r.dimension ? h('span', { class: 'tag', text: r.dimension }) : null, r.direccion ? h('span', { class: 'tag ' + dirClass(r.direccion), text: r.direccion }) : null, r.certeza ? h('span', { class: 'tag', text: 'Certeza ' + r.certeza.toLowerCase() }) : null),
+          h('div', { class: 'tags' }, r.pendiente ? h('span', { class: 'tag pend', text: 'Pendiente de enviar' }) : null, r.dimension ? h('span', { class: 'tag', text: r.dimension }) : null, r.direccion ? h('span', { class: 'tag ' + dirClass(r.direccion), text: r.direccion }) : null, r.certeza ? h('span', { class: 'tag', text: 'Certeza ' + r.certeza.toLowerCase() }) : null),
           h('span', { class: 'meta', text: ok + ' de 8 criterios' })),
         what, det,
         h('div', { class: 'meta' }, h('span', { text: 'Guardada el ' + fmtDate(r.createdAt) }), r.registradoPor ? h('span', { text: 'Por ' + r.registradoPor + (r.registradoComponente ? ' · ' + r.registradoComponente : '') }) : null,
@@ -2286,6 +2393,16 @@ a.btn { text-decoration: none; }
     });
     paintMic();
   });
+  /* Sin internet: cola de envíos, aviso de estado y sincronización automática. */
+  cargarLocales();
+  window.addEventListener('online', function () { pintarSync(); sincronizar(); });
+  window.addEventListener('offline', function () { pintarSync(); });
+  $('#btn-sync').addEventListener('click', sincronizar);
+  marcarSincronizados().then(pintarSync).then(sincronizar);
+  setInterval(sincronizar, 60000);
+  if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
   (async function () {
     try { userApi = await use('user'); uid = userApi ? await userApi.id() : null; } catch (e) {}
     try { dbApi = await use('db'); } catch (e) { dbApi = null; }
