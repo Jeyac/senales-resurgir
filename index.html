@@ -138,6 +138,12 @@ textarea { resize: vertical; line-height: 1.45; }
 .partial:empty { display: none; }
 .pistas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
 .pistas .ptitle { font-size: 12.5px; color: var(--muted); margin-right: 2px; }
+.mapa .act { font-size: 12px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--line); color: var(--muted); background: #fff; }
+.mapa .act b { color: var(--ink); font-weight: 700; }
+.mapa .act.media { border-color: #F2B36B; background: #FFF3E0; }
+.mapa .act.alta { border-color: #0B3D91; background: #E8F1FF; }
+.mapa .act.alta b { color: #0B3D91; }
+.mapa .vinc { flex-basis: 100%; font-size: 12px; color: var(--muted); }
 .pista { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; border: 1px dashed var(--line); color: var(--muted); }
 .pista.on { border-style: solid; border-color: transparent; background: var(--ok-soft); color: var(--ok); }
 .pista.on::before { content: "✓ "; }
@@ -382,6 +388,7 @@ a.btn { text-decoration: none; }
           <textarea id="narr" rows="8" placeholder="Pulsa aquí y dicta o escribe lo que pasó, con tus propias palabras."></textarea>
           <p class="partial" id="partial-narr" aria-live="off"></p>
           <div class="pistas" id="pistas" title="Guía orientativa: se enciende según las palabras de tu relato."><span class="ptitle">Tu relato ya menciona:</span></div>
+          <div class="pistas mapa" id="mapa-act" hidden title="Mapa de actores clave: se arma solo con lo que cuentas y va completo en el informe."></div>
           <div class="div-hint" id="div-hint" hidden><span id="div-hint-txt"></span><button class="btn small" id="btn-dividir" type="button">Dividir ahora</button></div>
           <details>
             <summary>¿Cómo dicto con la voz?</summary>
@@ -392,6 +399,9 @@ a.btn { text-decoration: none; }
               <li>Mac: presiona dos veces la tecla <strong>Fn</strong>.</li>
               <li>Elige español como idioma de dictado.</li>
             </ul>
+            <p class="hint" style="margin:8px 0 4px"><strong>Dictar sin internet.</strong> <span id="dict-off-txt">Si el navegador lo permite, la página descarga una sola vez el español para reconocer la voz en el propio dispositivo.</span></p>
+            <div class="actions" style="margin-top:0"><button class="btn small" id="btn-dict-off" type="button" hidden>Preparar dictado sin internet</button></div>
+            <p class="hint">En el celular, el micrófono del teclado también dicta sin internet: en Android, abre los ajustes del teclado Gboard → Dictado por voz → «Idiomas sin conexión» y descarga Español. En iPhone el dictado del teclado ya funciona sin conexión.</p>
           </details>
           <div class="actions">
             <button class="btn primary" id="btn-est" type="button">Estructurar ficha</button>
@@ -403,9 +413,6 @@ a.btn { text-decoration: none; }
           <div class="callout" id="no-claude" hidden>
             <strong>En esta versión la ficha se llena a mano</strong>
             <p>Escribe la narrativa y completa los campos del paso 3. El asistente que estructura la ficha automáticamente solo funciona en la versión de Claude, con cuenta.</p>
-            <div class="actions" style="margin-top:0">
-              <a class="btn" id="open-link" href="https://claude.ai/artifact/AJaGhMyk4gqam2fs7sTnAE" target="_blank" rel="noopener">Abrir la versión con asistente</a>
-            </div>
             <details id="manual">
               <summary>O usa el modo manual</summary>
               <ol>
@@ -768,6 +775,23 @@ a.btn { text-decoration: none; }
     while (segs.length > 10) { var ult = segs.pop(); segs[segs.length - 1].frases = segs[segs.length - 1].frases.concat(ult.frases); }
     return segs.map(function (x) { return { fecha: x.fecha, texto: x.frases.join(' ') }; });
   }
+  /* Todos los actores que nombra el relato, sin repetir los que ya están dentro de otro más completo. */
+  function extraerActores(limpio) {
+    var actores = [], vistos = {};
+    var dicho = /(?:el actor (?:es|fue)|los actores (?:son|fueron)|quien actu[oó] (?:es|fue)|quienes actuaron (?:son|fueron)|actuaron|actu[oó])\s+([^.;]{3,90})/i.exec(limpio);
+    var encontrados = (dicho ? dicho[1].split(/\s*,\s*|\s+y\s+/) : []).concat(limpio.match(RE_ACTOR) || [], limpio.match(RE_ACTOR2) || []);
+    encontrados.forEach(function (a) {
+      a = a.trim().replace(/^(?:el|la|los|las)\s+/i, '');
+      /* «Municipalidad de Jocotán contrató» → «Municipalidad de Jocotán»: el verbo que sigue no es parte del nombre. */
+      a = a.replace(/\s+\S+(?:ó|aron|ieron|aba|ían)$/i, '').trim();
+      var k = sinTildes(a);
+      if (a.length < 3) return;
+      if (Object.keys(vistos).some(function (v) { return v.indexOf(k) >= 0; })) return;
+      Object.keys(vistos).forEach(function (v) { if (k.indexOf(v) >= 0) { actores.splice(actores.indexOf(vistos[v]), 1); delete vistos[v]; } });
+      vistos[k] = a; actores.push(a);
+    });
+    return actores;
+  }
   function estructurarLocal(texto, contexto) {
     var r0 = estructurarUno(texto);
     /* En una señal que salió de dividir un relato, lo que no se dice en su parte se toma del relato completo. */
@@ -810,18 +834,9 @@ a.btn { text-decoration: none; }
     pon('quePaso', pulir(hechos.slice(0, 6).map(sinArranque).join(' ')), 'narrativa');
     pon('fechaHecho', fechaDe(plain), 'inferido');
 
-    var actores = [], vistos = {};
     /* Si la persona lo dice de forma directa («el actor fue…», «actuaron…»), eso va primero. */
     var dicho = /(?:el actor (?:es|fue)|los actores (?:son|fueron)|quien actu[oó] (?:es|fue)|quienes actuaron (?:son|fueron)|actuaron|actu[oó])\s+([^.;]{3,90})/i.exec(limpio);
-    var encontrados = (dicho ? dicho[1].split(/\s*,\s*|\s+y\s+/) : []).concat(limpio.match(RE_ACTOR) || [], limpio.match(RE_ACTOR2) || []);
-    encontrados.forEach(function (a) {
-      a = a.trim().replace(/^(?:el|la|los|las)\s+/i, ''); var k = sinTildes(a);
-      if (a.length < 3) return;
-      /* no se repite un actor que ya está contenido en otro más completo */
-      if (Object.keys(vistos).some(function (v) { return v.indexOf(k) >= 0; })) return;
-      Object.keys(vistos).forEach(function (v) { if (k.indexOf(v) >= 0) { actores.splice(actores.indexOf(vistos[v]), 1); delete vistos[v]; } });
-      vistos[k] = a; actores.push(a);
-    });
+    var actores = extraerActores(limpio);
     pon('quien', actores.slice(0, 8).join(', '), dicho ? 'narrativa' : 'inferido');
     /* El nivel sale primero de quién actuó; si no hay actor, del resto del relato. */
     var niv = puntuar(sinTildes(actores.join(' ')), REGLAS_NIVEL);
@@ -919,6 +934,52 @@ a.btn { text-decoration: none; }
   /* Se lee el relato y también lo que se escribe o dicta en «Responde lo que falta». */
   var reglasLocales = { json: async function () { return estructurarLocal(document.querySelector('#narr').value + '\n' + document.querySelector('#resp').value, S.contexto); } };
 
+  /* ---------- Dictado sin internet: reconocimiento de voz en el propio dispositivo ----------
+     Chrome y Edge recientes pueden reconocer la voz sin mandar el audio a ningún servidor («processLocally»).
+     La primera vez, con internet, el navegador descarga el español; después el dictado funciona sin conexión. */
+  var DICT_LANG = /^es/i.test(navigator.language || '') ? navigator.language : 'es-GT';
+  var dictLocal = { estado: 'desconocido', lang: DICT_LANG, instalando: false };
+  function srLocalSoportado() { var SR = window.SpeechRecognition || window.webkitSpeechRecognition; return !!(SR && typeof SR.available === 'function' && typeof SR.install === 'function'); }
+  async function revisarDictadoLocal() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!srLocalSoportado()) { dictLocal.estado = 'no-soportado'; pintarDictadoLocal(); return dictLocal.estado; }
+    try {
+      var langs = [DICT_LANG, 'es-ES', 'es-MX', 'es-419'], mejor = 'unavailable';
+      for (var i = 0; i < langs.length; i++) {
+        var st = await SR.available({ langs: [langs[i]], processLocally: true });
+        if (st === 'available') { dictLocal.lang = langs[i]; mejor = st; break; }
+        if (st === 'downloading' || (st === 'downloadable' && mejor === 'unavailable')) { dictLocal.lang = langs[i]; mejor = st; }
+      }
+      dictLocal.estado = mejor;
+    } catch (e) { dictLocal.estado = 'no-soportado'; }
+    pintarDictadoLocal();
+    return dictLocal.estado;
+  }
+  async function instalarDictadoLocal(silencioso) {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!srLocalSoportado() || dictLocal.instalando || !navigator.onLine) return false;
+    dictLocal.instalando = true; pintarDictadoLocal();
+    if (!silencioso) setStatus('#est-status', 'Descargando el español para dictar sin internet… puedes seguir trabajando.');
+    var ok = false;
+    try { ok = await SR.install({ langs: [dictLocal.lang], processLocally: true }); } catch (e) { ok = false; }
+    dictLocal.instalando = false;
+    await revisarDictadoLocal();
+    if (!silencioso) setStatus('#est-status', ok || dictLocal.estado === 'available' ? 'Listo: el dictado ya funciona sin internet en este dispositivo.' : 'Este navegador no pudo preparar el dictado sin internet. Usa el micrófono del teclado cuando no haya conexión.', !(ok || dictLocal.estado === 'available'));
+    return ok;
+  }
+  function pintarDictadoLocal() {
+    var b = document.querySelector('#btn-dict-off'), t = document.querySelector('#dict-off-txt');
+    if (!b || !t) return;
+    var e = dictLocal.estado;
+    b.hidden = !(e === 'downloadable' && navigator.onLine) || dictLocal.instalando;
+    if (dictLocal.instalando) t.textContent = 'Descargando el español para el dictado sin internet…';
+    else if (e === 'available') t.textContent = 'Listo: este dispositivo reconoce la voz en español sin conexión.';
+    else if (e === 'downloading') t.textContent = 'El navegador está descargando el español para el dictado sin internet.';
+    else if (e === 'downloadable') t.textContent = navigator.onLine ? 'Pulsa el botón una vez (con internet) y el dictado quedará listo para usarse sin conexión.' : 'Cuando tengas internet, vuelve aquí y pulsa «Preparar dictado sin internet».';
+    else if (e === 'unavailable') t.textContent = 'Este navegador no ofrece español sin conexión. Sin internet, usa el micrófono del teclado del celular (Gboard con español descargado).';
+    else t.textContent = 'Este navegador no reconoce la voz sin conexión. Sin internet, usa el micrófono del teclado del celular (Gboard con español descargado) o Win + H en Windows.';
+  }
+
   /* Dictado propio del navegador (Chrome, Edge, Android, Safari), sin cuentas ni claves. */
   function dictadoNavegador() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -932,9 +993,19 @@ a.btn { text-decoration: none; }
         return new Promise(function (res, rej) {
           var iniciado = false, movil = /Android|iPhone|iPad/i.test(navigator.userAgent);
           var avisar = function (msg) { var el = document.querySelector('#est-status'); if (el) { el.textContent = msg; el.parentNode.className = 'status err'; } };
+          /* Sin internet se reconoce en el dispositivo; con internet, igual si ya está descargado el español
+             (es más rápido y privado). Si el navegador no puede, se avisa cómo dictar con el teclado. */
+          var usarLocal = dictLocal.estado === 'available';
+          if (!navigator.onLine && !usarLocal) {
+            avisar(dictLocal.estado === 'downloadable' ? 'Sin internet el navegador no puede dictar todavía: cuando tengas conexión pulsa «Preparar dictado sin internet». Mientras, toca el cuadro y usa el micrófono del teclado.' :
+              'Sin internet este navegador no reconoce la voz. Toca el cuadro y usa el micrófono del teclado (Gboard funciona sin conexión con el español descargado).');
+            rej({ code: 'stopped' }); return;
+          }
+          if (navigator.onLine && dictLocal.estado === 'downloadable' && !dictLocal.instalando) instalarDictadoLocal(true); /* se prepara en segundo plano para la próxima vez */
           var crear = function () {
             rec = new SR();
-            rec.lang = /^es/i.test(navigator.language || '') ? navigator.language : 'es-GT';
+            rec.lang = usarLocal ? dictLocal.lang : DICT_LANG;
+            if (usarLocal) { try { rec.processLocally = true; } catch (x) {} }
             rec.continuous = !movil; rec.interimResults = true; rec.maxAlternatives = 1;
             rec.onstart = function () { if (!iniciado) { iniciado = true; emit('state', { state: 'listening' }); res(); } };
             rec.onresult = function (ev) {
@@ -951,7 +1022,7 @@ a.btn { text-decoration: none; }
               activo = false;
               if (e === 'not-allowed' || e === 'service-not-allowed') avisar('El navegador bloqueó el micrófono. Pulsa el candado junto a la dirección de la página, permite el micrófono y vuelve a pulsar «Dictar».');
               else if (e === 'audio-capture') avisar('No encontré ningún micrófono en este dispositivo. Conecta uno o revisa que no lo esté usando otra aplicación.');
-              else if (e === 'network') avisar('El dictado necesita conexión a internet. Revisa tu conexión e intenta de nuevo.');
+              else if (e === 'network') avisar(dictLocal.estado === 'available' ? 'Se perdió la conexión: pulsa «Dictar» otra vez y seguirá sin internet, en este dispositivo.' : 'El dictado del navegador necesita internet. Mientras no haya conexión, toca el cuadro y usa el micrófono del teclado (Gboard funciona sin conexión con el español descargado).');
               else if (e === 'language-not-supported') avisar('Este navegador no ofrece dictado en español. Usa el dictado del teclado.');
               else avisar('El dictado se detuvo por un problema del navegador (' + e + '). Pulsa «Dictar» otra vez.');
               if (!iniciado) rej({ code: 'stopped' });
@@ -1619,7 +1690,7 @@ a.btn { text-decoration: none; }
     pintarLote(); updateNarr(); estructurar();
     flash('El relato volvió a ser una sola señal.');
   }
-  var draftTimer = null, vivoTimer = null;
+  var draftTimer = null, vivoTimer = null, mapaTimer = null;
   /* Lo que se responde en «lo que falta» también llena la ficha en vivo. */
   function vivoResp() {
     clearTimeout(vivoTimer);
@@ -1629,6 +1700,7 @@ a.btn { text-decoration: none; }
     var t = $('#narr').value, w = t.trim() ? t.trim().split(/\s+/).length : 0;
     PISTAS.forEach(function (p) { p.el.classList.toggle('on', p.re.test(t)); });
     $('#narr-count').textContent = w ? '· ' + w + ' palabra' + (w === 1 ? '' : 's') : '';
+    clearTimeout(mapaTimer); mapaTimer = setTimeout(function () { try { pintarMapaActores($('#narr').value); } catch (e) {} }, 400);
     pintarHintDivision();
     /* Llenado en vivo: con las reglas locales, la ficha se actualiza sola mientras se escribe o se dicta. */
     clearTimeout(vivoTimer);
@@ -1938,6 +2010,103 @@ a.btn { text-decoration: none; }
       filas.map(function (f) { return '<tr>' + f.map(function (c) { return '<td>' + (c && c.html ? c.html : esc(c)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
   }
   function lista(items) { return '<ul>' + items.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>'; }
+
+  /* ---------- Mapa de actores clave: quién es, qué hace en el cambio y cómo se relaciona ---------- */
+  var TIPOS_ACTOR = [
+    ['Gobierno municipal', /(alcald(?!e auxiliar|esa auxiliar|ia indigena)|concejo|municipalidad|corporacion municipal|sindico|concejal|oficina municipal|direccion municipal|\b(dmm|dmp|omm|omas|dafim|ompna|ugam|im-gird|comude|comred|coe)\b)/],
+    ['Gobierno departamental', /(gobernacion|gobernador|codede|codred|departament)/],
+    ['Gobierno nacional', /(conred|secretaria ejecutiva|ministerio|\b(maga|mspas|mineduc|sesan|segeplan|insivumeh|marn|mides|inab|conap|pnc|renap|icta|mingob|micivi|codisra|sosep)\b|policia|ejercito|congreso|gobierno central|proteccion civil|bomberos)/],
+    ['Salud y educación', /(centro de salud|puesto de salud|distrito de salud|hospital|escuela|instituto|docentes|maestr|comunidad educativa|comit[e]? escolar)/],
+    ['Academia', /(universidad|cunori|usac|estudiantes|intecap|centro universitario)/],
+    ['Cooperación y sociedad civil', /(\b(crs|ong|fao|unicef|pnud)\b|caritas|cruz roja|asociacion|cooperativa|red de|mesa|organizacion de|iglesia|parroquia|parroco|pastor|lideres religiosos|mancomunidad|empresa)/],
+    ['Organización comunitaria', /(cocode|colred|comite|comision|lider|autoridades|alcalde auxiliar|alcaldesa auxiliar|alcaldia indigena|junta directiva|grupo de|familias|vecinos|comadron|promotor|brigad|voluntari|padres de familia|productor|agricultor|caficultor|mujeres|jovenes)/]
+  ];
+  var ROLES_ACTOR = [
+    ['Decide y aprueba', /(aprob|acord|decid|autoriz|emiti|resolv|nombr|acredit|declar)/, 3],
+    ['Compromete recursos', /(contrat|asign|invirt|invier|destin|financ|presupuest|aport|dono|donar|pag)/, 3],
+    ['Formaliza compromisos', /(firm|carta|convenio|acta|compromet|compromiso)/, 2],
+    ['Capacita y asesora', /(capacit|formad|formacion|taller|curso|asesor|acompan|facilit|diplomado|sensibiliz|socializ)/, 2],
+    ['Organiza y coordina', /(organiz|conform|coordin|convoc|articul|reuni|gestion|elabor|prepar|present|solicit|propus)/, 2],
+    ['Participa y se beneficia', /(particip|asisti|recib|benefici|se sum|involucr|integr)/, 1]
+  ];
+  function claveActor(a) { return sinTildes(a).split(/\s+/).filter(function (w) { return w.length > 3 && !/^(de|del|la|las|los|el|para|con)$/.test(w); })[0] || sinTildes(a); }
+  function mapaActores(actores, frases) {
+    var fichas = actores.map(function (a) {
+      var k = claveActor(a), p = sinTildes(a);
+      var fr = frases.filter(function (s) { return sinTildes(s).indexOf(k) >= 0; });
+      var tipo = (TIPOS_ACTOR.filter(function (t) { return t[1].test(p); })[0] || [/^(don|dona|el senor|la senora|ingenier|licenciad|doctor|profesor)/.test(p) ? 'Persona de referencia' : 'Actor local'])[0];
+      /* El rol sale del verbo más cercano al actor: primero lo que sigue a su nombre, luego lo que lo precede, y por último la frase entera. */
+      var roles = [], peso = 0;
+      fr.forEach(function (s) {
+        var ps = sinTildes(s), idx = ps.indexOf(k), tras = ps.slice(idx + k.length, idx + k.length + 70), antes = ps.slice(Math.max(0, idx - 45), idx);
+        var buscar = function (txt, ultimo) {
+          var hits = ROLES_ACTOR.map(function (r) { var m = r[1].exec(txt); return m ? { r: r, pos: m.index } : null; }).filter(Boolean);
+          hits.sort(function (x, y) { return ultimo ? y.pos - x.pos : x.pos - y.pos; });
+          return hits[0] ? hits[0].r : null;
+        };
+        var rol = buscar(tras) || buscar(antes, true) || buscar(ps);
+        if (rol && roles.indexOf(rol[0]) < 0) { roles.push(rol[0]); peso = Math.max(peso, rol[2]); }
+      });
+      var nivel = puntuar(p, REGLAS_NIVEL).valor || '';
+      var gob = /^Gobierno/.test(tipo);
+      var influencia = peso >= 3 || (gob && peso >= 2) ? 'Alta' : peso >= 2 || gob ? 'Media' : 'Baja';
+      var participacion = fr.length >= 2 || /Organiza|Participa|Formaliza/.test(roles.join(' ')) ? 'Alta' : fr.length ? 'Media' : 'Baja';
+      return { actor: a, clave: k, tipo: tipo, nivel: nivel, roles: roles.length ? roles : ['Mencionado en la narrativa'], influencia: influencia, participacion: participacion, frases: fr, peso: peso };
+    });
+    /* Vínculos: dos actores que aparecen en la misma frase están relacionados por lo que esa frase cuenta. */
+    var vinculos = [];
+    for (var i = 0; i < fichas.length; i++) for (var j = i + 1; j < fichas.length; j++) {
+      var comun = fichas[i].frases.filter(function (s) { return fichas[j].frases.indexOf(s) >= 0; })[0];
+      if (!comun) continue;
+      var p = sinTildes(comun), v = /(firm|carta|convenio|compromiso)/.test(p) ? 'Se comprometen entre sí' : /(capacit|formad|taller|curso|diplomado)/.test(p) ? 'Formación y acompañamiento' :
+        /(coordin|articul|reuni|mesa|convoc)/.test(p) ? 'Coordinación' : /(contrat|financ|asign|recurso|presupuesto|aport)/.test(p) ? 'Aporte de recursos' : /(aprob|acord|acredit|solicit|present)/.test(p) ? 'Decisión y gestión' : 'Actúan en el mismo hecho';
+      vinculos.push([fichas[i].actor, v, fichas[j].actor, corto(comun, 150)]);
+    }
+    fichas.sort(function (a, b) { return (b.peso * 10 + b.frases.length) - (a.peso * 10 + a.frases.length); });
+    return { fichas: fichas, vinculos: vinculos, central: fichas[0] || null };
+  }
+  function htmlMapaActores(mapa) {
+    if (!mapa.fichas.length) return '<p>La narrativa no identifica actores; conviene nombrar quién decidió, quién ejecutó y quién participó.</p>';
+    var f = mapa.fichas, c = mapa.central;
+    var cuadrante = function (inf, par) { return f.filter(function (x) { return (x.influencia === 'Alta') === inf && (x.participacion === 'Alta') === par; }).map(function (x) { return x.actor; }); };
+    var celda = function (titulo, guia, lst) { return { html: '<b>' + esc(titulo) + '</b><br><span style="color:#52647C;font-size:9pt">' + esc(guia) + '</span><br>' + (lst.length ? esc(lst.join(' · ')) : '—') }; };
+    var intro = 'En la narrativa intervienen ' + f.length + ' actor' + (f.length === 1 ? '' : 'es') + '. El actor central es ' + c.actor + ' (' + c.tipo.toLowerCase() + (c.nivel ? ', nivel ' + c.nivel.toLowerCase() : '') + '), que ' + c.roles.join(', ').toLowerCase() + '.' +
+      (mapa.vinculos.length ? ' Se identifican ' + mapa.vinculos.length + ' vínculo' + (mapa.vinculos.length === 1 ? '' : 's') + ' entre actores a partir de los hechos en que actúan juntos.' : ' La narrativa no muestra a los actores actuando juntos; conviene describir cómo se relacionan.');
+    var tipos = {}; f.forEach(function (x) { tipos[x.tipo] = (tipos[x.tipo] || 0) + 1; });
+    var faltan = [];
+    if (!Object.keys(tipos).some(function (t) { return /comunitaria|Persona/.test(t); })) faltan.push('No aparecen actores comunitarios (COCODE, COLRED, liderazgos): verificar si participaron o si la iniciativa fue vertical.');
+    if (!Object.keys(tipos).some(function (t) { return /Gobierno/.test(t); })) faltan.push('No aparece ninguna institución pública: precisar quién sostiene el cambio con decisiones o recursos.');
+    if (!f.some(function (x) { return /mujeres|lideresa|jovenes|oficina municipal de la mujer|dmm|omm/.test(sinTildes(x.actor)); })) faltan.push('No se nombran mujeres ni jóvenes como actores: desagregar quién participa y decide.');
+    return '<p>' + esc(intro) + '</p>' +
+      tabla(['Actor', 'Tipo', 'Nivel', 'Rol en el cambio', 'Influencia', 'Participación', 'Qué hace según la narrativa'], f.map(function (x) {
+        return [x.actor, x.tipo, x.nivel || '—', x.roles.join('; '), x.influencia, x.participacion, corto(x.frases[0] || '', 150) || '—'];
+      })) +
+      '<p><b>Mapa de influencia y participación</b> (dónde ubicar a cada actor para el seguimiento):</p>' +
+      tabla(['', 'Participación alta', 'Participación media o baja'], [
+        [{ html: '<b>Influencia alta</b>' }, celda('Aliados clave', 'Involucrar en las decisiones y en la verificación del cambio.', cuadrante(true, true)), celda('Por involucrar', 'Tienen poder de decisión pero poca presencia: acercarlos al proceso.', cuadrante(true, false))],
+        [{ html: '<b>Influencia media o baja</b>' }, celda('Base del proceso', 'Acompañar y fortalecer sus capacidades; son quienes sostienen el cambio en el territorio.', cuadrante(false, true)), celda('Por observar', 'Mantener informados y revisar si su papel debe crecer.', cuadrante(false, false))]
+      ]) +
+      (mapa.vinculos.length ? '<p><b>Vínculos entre actores</b></p>' + tabla(['Actor', 'Vínculo', 'Actor', 'Hecho que los relaciona'], mapa.vinculos) : '') +
+      (faltan.length ? '<p><b>Vacíos del mapa</b></p>' + lista(faltan) : '');
+  }
+  /* En la pantalla, debajo del relato: el mapa de actores se arma en vivo mientras se escribe o se dicta. */
+  function pintarMapaActores(texto) {
+    var box = $('#mapa-act'); if (!box) return;
+    var limpio = prepararTexto(texto || '');
+    if (limpio.trim().length < 25) { box.hidden = true; return; }
+    var actores = extraerActores(limpio), frases = frasesDe(limpio);
+    if (!actores.length) { box.hidden = true; return; }
+    var mapa = mapaActores(actores, frases);
+    box.innerHTML = '';
+    box.append(h('span', { class: 'ptitle', text: 'Actores clave:' }));
+    mapa.fichas.forEach(function (x) {
+      var chip = h('span', { class: 'act ' + (x.influencia === 'Alta' ? 'alta' : x.influencia === 'Media' ? 'media' : ''), title: x.tipo + (x.nivel ? ' · ' + x.nivel : '') + ' · Influencia ' + x.influencia.toLowerCase() + ' · Participación ' + x.participacion.toLowerCase() });
+      chip.append(h('b', { text: x.actor }), h('span', { text: ' · ' + x.roles[0].toLowerCase() }));
+      box.append(chip);
+    });
+    if (mapa.vinculos.length) box.append(h('span', { class: 'vinc', text: 'Vínculos: ' + mapa.vinculos.slice(0, 4).map(function (v) { return v[0] + ' ↔ ' + v[2] + ' (' + v[1].toLowerCase() + ')'; }).join(' · ') + (mapa.vinculos.length > 4 ? ' · y ' + (mapa.vinculos.length - 4) + ' más en el informe' : '') }));
+    box.hidden = false;
+  }
   function construirInforme(senales) {
     var narrativas = S.contexto || senales.map(function (s) { return s.narrativa; }).join('\n');
     var limpio = prepararTexto(narrativas), plain = numerosADigitos(sinTildes(limpio));
@@ -1967,13 +2136,21 @@ a.btn { text-decoration: none; }
     var subtitulo = 'Cadena de cambio en ' + lugar + ', Chiquimula: ' + minus(corto(primero('queCambio') || primero('quePaso'), 130));
 
     /* Actores */
-    var actores = [];
+    var actores = [], riesgosExtra = [];
     senales.forEach(function (s) { String(s.quien || '').split(/\s*,\s*/).forEach(function (a) { if (a && actores.map(sinTildes).indexOf(sinTildes(a)) < 0) actores.push(a); }); });
     var filasActores = actores.map(function (a) {
       var clave = sinTildes(a).split(/\s+/).filter(function (w) { return w.length > 3; })[0] || sinTildes(a);
       var fr = frases.filter(function (s) { return sinTildes(s).indexOf(clave) >= 0; })[0] || '';
       return [a, corto(fr, 170) || '—', puntuar(sinTildes(a), REGLAS_NIVEL).valor || primero('nivel') || '—'];
     });
+    var mapa = mapaActores(actores, frases);
+    if (mapa.central) {
+      var mc = mapa.central;
+      if (mc.influencia === 'Alta' && mc.participacion === 'Alta') { /* el actor central ya aparece en fortalezas */ }
+      else if (mc.influencia === 'Alta') riesgosExtra.push('El actor con más poder de decisión (' + mc.actor + ') aparece poco en el relato: su compromiso sostenido no está documentado.');
+      var sinGob = !mapa.fichas.some(function (x) { return /^Gobierno/.test(x.tipo); });
+      if (sinGob) riesgosExtra.push('Ningún actor institucional sostiene el cambio con decisiones o recursos.');
+    }
 
     /* Cifras */
     var cifras = [], usados = {}, m, reND = /(\d[\d.,]*) de (?:las |los )?(\d[\d.,]*) ([a-z]+)/g;
@@ -2050,7 +2227,9 @@ a.btn { text-decoration: none; }
     if (/acredit/.test(plain)) riesgos.push('La acreditación es un trámite administrativo que puede demorar los hitos.');
     if (proceso.length || proyect.length) riesgos.push('Hay pasos pendientes o proyectados sin fecha ni responsable definidos.');
     if (!evid && !archivos.length) riesgos.push('Sin medio de verificación, el resultado no puede reportarse como logrado.');
+    riesgos = riesgos.concat(riesgosExtra);
     if (!riesgos.length) riesgos.push('Una sola fuente sin triangulación.');
+    if (mapa.central && mapa.central.influencia === 'Alta' && mapa.central.participacion === 'Alta') fortalezas.push('El actor central (' + mapa.central.actor + ') tiene alta influencia y alta participación: aliado clave para sostener el cambio.');
 
     var resumen1 = senales.map(function (s) { var t = conFecha(s.fechaHecho, s.quePaso, 'El'); return /[.!?]$/.test(t) ? t : t + '.'; }).join(' ').replace(/\.\s*\./g, '.');
     var etapas = filasCadena.map(function (f) { return f[1]; }).filter(function (e, i, a) { return e !== 'Hecho' && a.indexOf(e) === i; });
@@ -2086,8 +2265,9 @@ a.btn { text-decoration: none; }
       H('1. Resumen ejecutivo') + P(resumen1) + (resumen2 ? P(resumen2) : '') + '<p><b>Hallazgo central:</b> ' + esc(hallazgo) + '</p><p><b>Decisión sugerida:</b> ' + esc(decision) + '</p>' +
       H('2. Antecedentes y contexto') + P('La narrativa describe ' + (nombresCats.length ? nombresCats.slice(0, 3).join(', ').toLowerCase() : 'un hecho de la gestión local del riesgo') + ' en ' + lugar + '. Los actores que aparecen en el relato son los siguientes.') +
       (filasActores.length ? tabla(['Actor', 'Rol en la narrativa', 'Nivel'], filasActores) : P('La narrativa no identifica actores.')) +
+      '<h3>Mapa de actores clave</h3>' + htmlMapaActores(mapa) +
       H('3. Objetivo y alcance') + P('Objetivo general: analizar la narrativa de resultado para precisar qué cambió, con qué evidencia y qué falta para consolidarlo.') + P('Objetivos específicos:') +
-      lista(['Identificar actores, decisiones y la cadena causal del cambio.', 'Separar lo logrado, lo que está en proceso y lo proyectado.', 'Detectar vacíos, ambigüedades e inconsistencias de la narrativa.', 'Proponer acciones de verificación y seguimiento.']) +
+      lista(['Identificar actores, decisiones y la cadena causal del cambio.', 'Mapear a los actores clave: su rol, influencia, participación y vínculos.', 'Separar lo logrado, lo que está en proceso y lo proyectado.', 'Detectar vacíos, ambigüedades e inconsistencias de la narrativa.', 'Proponer acciones de verificación y seguimiento.']) +
       P('Alcance: el análisis cubre la narrativa registrada (' + periodo + ') sobre ' + lugar + '. No incluye información posterior a la narrativa.') +
       H('4. Metodología y fuentes de información') + P('Fuente: ' + senales.length + ' ficha(s) de señal de cambio registradas con el Asistente, a partir de una narrativa ' + (/dict/i.test(narrativas) ? 'dictada' : 'dictada o escrita') + '. No se contó con entrevistas, observación directa ni acceso a los documentos citados.') +
       P('Enfoque: análisis cualitativo de contenido con categorías de gestión local del riesgo. Pasos:') +
@@ -2393,10 +2573,22 @@ a.btn { text-decoration: none; }
     });
     paintMic();
   });
+  /* Dictado sin internet: se revisa si el dispositivo ya tiene el español y se ofrece prepararlo. */
+  $('#btn-dict-off').addEventListener('click', function () { instalarDictadoLocal(false); });
+  revisarDictadoLocal();
   /* Sin internet: cola de envíos, aviso de estado y sincronización automática. */
   cargarLocales();
-  window.addEventListener('online', function () { pintarSync(); sincronizar(); });
-  window.addEventListener('offline', function () { pintarSync(); });
+  window.addEventListener('online', function () { pintarSync(); sincronizar(); revisarDictadoLocal(); });
+  window.addEventListener('offline', function () { pintarSync(); pintarDictadoLocal(); });
+  /* Cuando llega una versión nueva de la página, se recarga una vez (solo si no hay un relato a medio escribir). */
+  if ('serviceWorker' in navigator) {
+    var recargado = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (recargado || !navigator.serviceWorker.controller) return;
+      recargado = true;
+      if (!$('#narr').value.trim()) location.reload();
+    });
+  }
   $('#btn-sync').addEventListener('click', sincronizar);
   marcarSincronizados().then(pintarSync).then(sincronizar);
   setInterval(sincronizar, 60000);

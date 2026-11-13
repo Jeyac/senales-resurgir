@@ -1,7 +1,7 @@
 ﻿/* Asistente de señales de cambio — funciona sin internet.
    Guarda la página, el logo y las fuentes en el dispositivo; los envíos al flujo nunca se guardan aquí
    (de eso se encarga la cola de la propia página). */
-var CACHE = 'senales-v4';
+var CACHE = 'senales-v5';
 var BASE = ['./', './index.html', './logo-resurgir.png?v=3', './manifest.webmanifest', './icon-192.png?v=4', './icon-512.png?v=4'];
 
 self.addEventListener('install', function (e) {
