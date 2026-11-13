@@ -10,6 +10,8 @@
 <style>
 .sync { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: #E8F1FF; color: #0B3D91; font-weight: 600; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .sync.off { background: #FFF3E0; color: #7A3E00; }
+.sync.inst { background: #fff; border: 1px solid #C9D6E8; font-weight: 500; }
+.sync.inst .acts { display: flex; gap: 8px; }
 .tag.pend { background: #FFF3E0; color: #7A3E00; }
 </style>
 <style>
@@ -342,6 +344,10 @@ a.btn { text-decoration: none; }
     </svg>
   </header>
 
+  <div class="sync inst" id="instalar" hidden>
+    <span id="instalar-txt">Instala la app en este dispositivo: se abre desde la pantalla de inicio, con el icono de Resurgir, y funciona sin internet.</span>
+    <span class="acts"><button class="btn small primary" id="btn-instalar" type="button">Instalar la app</button><button class="btn small" id="btn-instalar-no" type="button" aria-label="Ahora no">Ahora no</button></span>
+  </div>
   <div class="sync" id="sync" hidden role="status" aria-live="polite">
     <span id="sync-txt"></span>
     <button class="btn small" id="btn-sync" type="button" hidden>Enviar ahora</button>
@@ -1058,7 +1064,7 @@ a.btn { text-decoration: none; }
   async function probarClave(k, callado) {
     var ok = false;
     try { ok = (await sha(k)) === KEY_HASH; } catch (e) {}
-    if (ok) { CLAVE = k; try { sessionStorage.setItem('senales-clave', k); } catch (e) {} document.querySelector('#gate').hidden = true; setTimeout(function () { pintarSync(); sincronizar(); }, 0); }
+    if (ok) { CLAVE = k; try { sessionStorage.setItem('senales-clave', k); } catch (e) {} document.querySelector('#gate').hidden = true; setTimeout(function () { pintarSync(); sincronizar(); if (typeof pintarInstalar === 'function') pintarInstalar(); }, 0); }
     else if (!callado) document.querySelector('#gate-msg').textContent = 'La clave no coincide. Revísala e intenta de nuevo.';
   }
   async function enviarAFlujo(rec) {
@@ -2573,6 +2579,26 @@ a.btn { text-decoration: none; }
     });
     paintMic();
   });
+  /* Instalar como app (PWA): Chrome y Edge avisan cuando se puede instalar; en iPhone se explica el paso de Safari. */
+  var promptInstalar = null, yaApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  function pintarInstalar() {
+    var box = $('#instalar'); if (!box) return;
+    var noAhora = false; try { noAhora = sessionStorage.getItem('senales-instalar-no') === '1'; } catch (e) {}
+    var esIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+    if (yaApp || noAhora || !$('#gate').hidden) { box.hidden = true; return; }
+    if (promptInstalar) { $('#btn-instalar').hidden = false; box.hidden = false; return; }
+    if (esIOS) { $('#instalar-txt').textContent = 'Para tener la app en tu iPhone: en Safari toca el botón Compartir y luego «Añadir a pantalla de inicio».'; $('#btn-instalar').hidden = true; box.hidden = false; return; }
+    box.hidden = true;
+  }
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); promptInstalar = e; pintarInstalar(); });
+  window.addEventListener('appinstalled', function () { promptInstalar = null; yaApp = true; pintarInstalar(); flash('La app quedó instalada en este dispositivo.'); });
+  $('#btn-instalar').addEventListener('click', async function () {
+    if (!promptInstalar) return;
+    try { promptInstalar.prompt(); await promptInstalar.userChoice; } catch (e) {}
+    promptInstalar = null; pintarInstalar();
+  });
+  $('#btn-instalar-no').addEventListener('click', function () { try { sessionStorage.setItem('senales-instalar-no', '1'); } catch (e) {} pintarInstalar(); });
+  setTimeout(pintarInstalar, 0);
   /* Dictado sin internet: se revisa si el dispositivo ya tiene el español y se ofrece prepararlo. */
   $('#btn-dict-off').addEventListener('click', function () { instalarDictadoLocal(false); });
   revisarDictadoLocal();
