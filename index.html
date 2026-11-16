@@ -88,6 +88,8 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .plate img { width: 280px; height: auto; }
 .hero-txt { flex: 1 1 320px; min-width: 0; }
 .lead { color: var(--band-soft); max-width: 62ch; margin-top: 8px; font-size: 15.5px; }
+.credit { color: var(--band-soft); opacity: .85; margin-top: 10px; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.toast .btn { margin-left: 10px; padding: 4px 10px; font-size: 13px; }
 .waves { position: absolute; left: 0; right: 0; bottom: -1px; width: 100%; height: 44px; display: block; }
 .waves .w1 { fill: var(--sky); }
 .waves .w2 { fill: var(--sun); }
@@ -339,6 +341,7 @@ a.btn { text-decoration: none; }
     <div class="hero-txt">
       <h1>Asistente de señales de cambio</h1>
       <p class="lead">Cuenta una señal con tu voz. El asistente propone la ficha, te pregunta lo que falta y tú confirmas antes de guardar.</p>
+      <p class="credit">Hecho por Jéraldyn Acevedo</p>
     </div>
     <svg class="waves" viewBox="0 0 1200 60" preserveAspectRatio="none" aria-hidden="true">
       <path class="w1" d="M-40 26 C150 2 300 52 450 28 S750 4 900 28 S1100 48 1240 22 V60 H-40Z"/>
@@ -2609,20 +2612,44 @@ a.btn { text-decoration: none; }
   cargarLocales();
   window.addEventListener('online', function () { pintarSync(); sincronizar(); revisarDictadoLocal(); });
   window.addEventListener('offline', function () { pintarSync(); pintarDictadoLocal(); });
-  /* Cuando llega una versión nueva de la página, se recarga una vez (solo si no hay un relato a medio escribir). */
+  /* Actualización automática: la página busca versiones nuevas sola (al abrir, al volver a la pestaña, al
+     recuperar internet y cada 3 minutos). Si no hay un relato a medio escribir, se recarga sin que nadie
+     pulse nada; si lo hay, muestra un aviso con el botón «Actualizar» para no perder lo escrito. */
+  var swReg = null, recargado = false;
+  function hayTrabajoAMedias() { return !!($('#narr').value.trim() || $('#resp').value.trim()); }
+  function aplicarNuevaVersion() {
+    if (recargado) return; recargado = true;
+    location.reload();
+  }
+  function avisarNuevaVersion() {
+    var el = $('#flash'); el.className = 'toast'; el.textContent = 'Hay una versión nueva de la página. ';
+    var b = h('button', { class: 'btn small primary', type: 'button', text: 'Actualizar' });
+    b.addEventListener('click', function () { recargado = false; aplicarNuevaVersion(); });
+    el.append(b);
+  }
+  function buscarActualizacion() { if (swReg && navigator.onLine) swReg.update().catch(function () {}); }
   if ('serviceWorker' in navigator) {
-    var recargado = false;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (recargado || !navigator.serviceWorker.controller) return;
-      recargado = true;
-      if (!$('#narr').value.trim()) location.reload();
+      if (!navigator.serviceWorker.controller) return;
+      if (hayTrabajoAMedias()) avisarNuevaVersion(); else aplicarNuevaVersion();
     });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) buscarActualizacion(); });
+    window.addEventListener('online', buscarActualizacion);
+    setInterval(buscarActualizacion, 180000);
   }
   $('#btn-sync').addEventListener('click', sincronizar);
   marcarSincronizados().then(pintarSync).then(sincronizar);
   setInterval(sincronizar, 60000);
   if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) {
-    navigator.serviceWorker.register('sw.js').catch(function () {});
+    navigator.serviceWorker.register('sw.js').then(function (r) {
+      swReg = r;
+      /* Si ya hay una versión nueva esperando, se activa de inmediato. */
+      if (r.waiting) r.waiting.postMessage('activar');
+      r.addEventListener('updatefound', function () {
+        var nuevo = r.installing; if (!nuevo) return;
+        nuevo.addEventListener('statechange', function () { if (nuevo.state === 'installed' && navigator.serviceWorker.controller) nuevo.postMessage('activar'); });
+      });
+    }).catch(function () {});
   }
   (async function () {
     try { userApi = await use('user'); uid = userApi ? await userApi.id() : null; } catch (e) {}
