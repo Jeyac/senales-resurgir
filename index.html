@@ -386,7 +386,7 @@ a.btn { text-decoration: none; }
     <div class="hero-txt">
       <h1>Asistente de señales de cambio</h1>
       <p class="lead">Cuenta una señal con tu voz. El asistente propone la ficha, te pregunta lo que falta y tú confirmas antes de guardar.</p>
-      <p class="credit">Hecho por Jéraldyn Acevedo</p>
+      <p class="credit">Hecho por Jéraldyn Acevedo <span id="ver"></span></p>
     </div>
     <svg class="waves" viewBox="0 0 1200 60" preserveAspectRatio="none" aria-hidden="true">
       <path class="w1" d="M-40 26 C150 2 300 52 450 28 S750 4 900 28 S1100 48 1240 22 V60 H-40Z"/>
@@ -2702,14 +2702,27 @@ a.btn { text-decoration: none; }
     el.append(b);
   }
   function buscarActualizacion() { if (swReg && navigator.onLine) swReg.update().catch(function () {}); }
+  /* La versión instalada se muestra junto al crédito, para comprobar de un vistazo que la app está al día. */
+  function pintarVersion() {
+    if (!('caches' in window)) return;
+    caches.keys().then(function (ks) {
+      var k = ks.filter(function (x) { return /^senales-/.test(x); }).sort().pop();
+      var el = $('#ver'); if (el && k) el.textContent = '· versión ' + k.replace('senales-', '');
+    }).catch(function () {});
+  }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('controllerchange', function () {
+      pintarVersion();
       if (!navigator.serviceWorker.controller) return;
       if (hayTrabajoAMedias()) avisarNuevaVersion(); else aplicarNuevaVersion();
     });
     document.addEventListener('visibilitychange', function () { if (!document.hidden) buscarActualizacion(); });
     window.addEventListener('online', buscarActualizacion);
-    setInterval(buscarActualizacion, 180000);
+    window.addEventListener('focus', buscarActualizacion);
+    window.addEventListener('pageshow', function () { buscarActualizacion(); pintarVersion(); });
+    /* En la app instalada se revisa más seguido (cada minuto); en el navegador, cada 3 minutos. */
+    setInterval(buscarActualizacion, yaApp ? 60000 : 180000);
+    pintarVersion();
   }
   $('#btn-sync').addEventListener('click', sincronizar);
   marcarSincronizados().then(pintarSync).then(sincronizar);
@@ -2717,8 +2730,10 @@ a.btn { text-decoration: none; }
   if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').then(function (r) {
       swReg = r;
-      /* Si ya hay una versión nueva esperando, se activa de inmediato. */
+      /* Si ya hay una versión nueva esperando, se activa de inmediato; y se busca otra al arrancar. */
       if (r.waiting) r.waiting.postMessage('activar');
+      setTimeout(buscarActualizacion, 1500);
+      pintarVersion();
       r.addEventListener('updatefound', function () {
         var nuevo = r.installing; if (!nuevo) return;
         nuevo.addEventListener('statechange', function () { if (nuevo.state === 'installed' && navigator.serviceWorker.controller) nuevo.postMessage('activar'); });
