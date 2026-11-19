@@ -271,6 +271,14 @@ a.btn { text-decoration: none; }
 .modal-body { overflow: auto; padding: 16px; background: #fff; color: #1a1a1a; }
 .lote { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding: 8px 10px; background: var(--accent-soft); border-radius: 10px; }
 .lote select { width: auto; background: var(--surface); }
+.consent { z-index: 45; }
+.consent .modal-box { width: min(760px, 100%); }
+.consent-body { font-size: 15px; line-height: 1.5; }
+.consent-body h3 { font-size: 15px; color: #0B3D91; margin: 16px 0 6px; }
+.consent-body ul { margin: 4px 0 8px 20px; padding: 0; }
+.consent-body li { margin: 4px 0; }
+.consent-check { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 12px; border-radius: 12px; background: #E8F1FF; color: #0B3D91; font-weight: 600; cursor: pointer; }
+.consent-check input { width: 20px; height: 20px; margin-top: 1px; flex: none; accent-color: #0B3D91; }
 .gate { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; place-items: center; padding: 16px; }
 .gate .card { max-width: 420px; width: 100%; display: grid; gap: 10px; }
 .gate input { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
@@ -318,6 +326,43 @@ a.btn { text-decoration: none; }
       <div class="actions" style="margin-top:0">
         <button class="btn" id="inf-word" type="button">Descargar Word</button>
         <button class="btn primary" id="inf-guardar" type="button" hidden>Guardar ahora</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal consent" id="consent" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="consent-titulo">
+    <div class="modal-head"><div><div class="step">Antes de comenzar</div><h2 id="consent-titulo">Consentimiento informado</h2></div></div>
+    <div class="modal-body consent-body">
+      <p><strong>Proyecto RESURGIR · CRS Guatemala · Monitoreo, evaluación, rendición de cuentas y aprendizaje (MEAL).</strong></p>
+      <p>Este asistente sirve para registrar <strong>señales de cambio</strong>: hechos observados en comunidades, municipalidades e instituciones de Chiquimula que muestran avances, retrocesos o cambios relacionados con el proyecto. La información se usa únicamente para el monitoreo, la evaluación y el aprendizaje del proyecto y para rendir cuentas a las comunidades y al donante.</p>
+      <h3>Qué se registra y dónde se guarda</h3>
+      <ul>
+        <li>El relato del hecho, los actores que intervinieron, el lugar, la fecha, la evidencia (fotografías o documentos) y el nombre de la persona del equipo que registra.</li>
+        <li>Todo se guarda en el SharePoint institucional de CRS, en la carpeta del proyecto RESURGIR. Solo el equipo autorizado del proyecto tiene acceso.</li>
+        <li>Si no hay internet, el registro queda guardado en este dispositivo y se envía automáticamente cuando vuelva la conexión.</li>
+      </ul>
+      <h3>Participación voluntaria</h3>
+      <p>Registrar es voluntario. Puedes dejar de hacerlo en cualquier momento o pedir al equipo MEAL que se corrija o retire un registro, sin ninguna consecuencia.</p>
+      <h3>Confidencialidad y protección de las personas</h3>
+      <ul>
+        <li>Registra solo la información necesaria para describir el cambio. Evita datos personales sensibles (salud, religión, situación legal, datos de contacto) que no sean indispensables.</li>
+        <li>Antes de tomar fotografías, citar nombres o recoger testimonios de personas de la comunidad, explícales para qué se usarán y pide su <strong>consentimiento verbal</strong>. En el caso de niñas, niños y adolescentes, el consentimiento lo da la madre, el padre o la persona responsable, y la niña o el niño debe estar de acuerdo.</li>
+        <li>Las fotografías y los testimonios se usan solo para los fines del proyecto. Cualquier otro uso (publicaciones, redes sociales, informes externos) requiere una autorización expresa.</li>
+        <li>CRS aplica su Política de Salvaguarda y su Código de Conducta: si durante el registro conoces una situación de riesgo para alguna persona, repórtala por los canales institucionales.</li>
+      </ul>
+      <h3>Tu compromiso al registrar</h3>
+      <p>Al aceptar, declaras que la información que registras proviene de tu observación directa o de fuentes que identificas, que es veraz hasta donde conoces y que, si incluye nombres, testimonios o imágenes de personas, les explicaste el propósito y obtuviste su consentimiento.</p>
+      <p class="hint">Dudas, correcciones o quejas: comunícate con el equipo MEAL del proyecto RESURGIR o usa el mecanismo de retroalimentación y respuesta de CRS.</p>
+      <label class="consent-check"><input type="checkbox" id="consent-chk"> <span>He leído y comprendo esta información. Acepto registrar bajo estas condiciones.</span></label>
+      <p class="status err" id="consent-msg" role="alert"></p>
+    </div>
+    <div class="modal-foot">
+      <span class="hint">Se muestra al inicio de cada sesión, como en todos los formularios de MEAL.</span>
+      <div class="actions" style="margin-top:0">
+        <button class="btn" id="consent-no" type="button">No acepto</button>
+        <button class="btn primary" id="consent-si" type="button" disabled>Sí, acepto y quiero comenzar</button>
       </div>
     </div>
   </div>
@@ -1070,7 +1115,7 @@ a.btn { text-decoration: none; }
   async function probarClave(k, callado) {
     var ok = false;
     try { ok = (await sha(k)) === KEY_HASH; } catch (e) {}
-    if (ok) { CLAVE = k; try { sessionStorage.setItem('senales-clave', k); } catch (e) {} document.querySelector('#gate').hidden = true; setTimeout(function () { pintarSync(); sincronizar(); if (typeof pintarInstalar === 'function') pintarInstalar(); }, 0); }
+    if (ok) { CLAVE = k; try { sessionStorage.setItem('senales-clave', k); } catch (e) {} document.querySelector('#gate').hidden = true; setTimeout(function () { mostrarConsentimiento(); pintarSync(); sincronizar(); if (typeof pintarInstalar === 'function') pintarInstalar(); }, 0); }
     else if (!callado) document.querySelector('#gate-msg').textContent = 'La clave no coincide. Revísala e intenta de nuevo.';
   }
   async function enviarAFlujo(rec) {
@@ -2585,6 +2630,35 @@ a.btn { text-decoration: none; }
     });
     paintMic();
   });
+  /* Consentimiento informado: aparece al inicio de cada sesión, después de la clave, como en los formularios de MEAL.
+     Hasta que la persona acepte, la pantalla queda cubierta y no se puede registrar nada. */
+  var CONSENT_KEY = 'senales-consentimiento';
+  function consentimientoDado() { try { return !!sessionStorage.getItem(CONSENT_KEY); } catch (e) { return false; } }
+  function mostrarConsentimiento() {
+    var box = document.querySelector('#consent'); if (!box) return;
+    if (consentimientoDado()) { box.hidden = true; return; }
+    document.querySelector('#consent-chk').checked = false;
+    document.querySelector('#consent-si').disabled = true;
+    document.querySelector('#consent-msg').textContent = '';
+    box.hidden = false;
+    try { box.querySelector('.modal-body').scrollTop = 0; } catch (e) {}
+  }
+  document.querySelector('#consent-chk').addEventListener('change', function () {
+    document.querySelector('#consent-si').disabled = !this.checked;
+    document.querySelector('#consent-msg').textContent = '';
+  });
+  document.querySelector('#consent-si').addEventListener('click', function () {
+    if (!document.querySelector('#consent-chk').checked) { document.querySelector('#consent-msg').textContent = 'Marca la casilla para confirmar que leíste la información.'; return; }
+    try { sessionStorage.setItem(CONSENT_KEY, new Date().toISOString()); } catch (e) {}
+    document.querySelector('#consent').hidden = true;
+    try { document.querySelector('#narr').focus(); } catch (e) {}
+  });
+  document.querySelector('#consent-no').addEventListener('click', function () {
+    document.querySelector('#consent-chk').checked = false;
+    document.querySelector('#consent-si').disabled = true;
+    document.querySelector('#consent-msg').textContent = 'Sin tu consentimiento no se puede usar el asistente. Puedes cerrar la página; si cambias de opinión, marca la casilla y pulsa «Sí, acepto».';
+  });
+
   /* Instalar como app (PWA): Chrome y Edge avisan cuando se puede instalar; en iPhone se explica el paso de Safari. */
   var promptInstalar = null, yaApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   function pintarInstalar() {

@@ -1,8 +1,8 @@
-﻿/* Asistente de señales de cambio — funciona sin internet.
+/* Asistente de señales de cambio — funciona sin internet.
    Guarda la página, el logo y las fuentes en el dispositivo; los envíos al flujo nunca se guardan aquí
    (de eso se encarga la cola de la propia página). */
 /* VERSION: cámbiala en cada publicación; así los dispositivos detectan la versión nueva y se actualizan solos. */
-var VERSION = '2026-11-16a';
+var VERSION = '2026-11-19a';
 var CACHE = 'senales-' + VERSION;
 var BASE = ['./', './index.html', './logo-resurgir.png?v=3', './manifest.webmanifest?v=6', './icon-192.png?v=4', './icon-512.png?v=4'];
 
