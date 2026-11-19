@@ -2689,8 +2689,11 @@ a.btn { text-decoration: none; }
   /* Actualización automática: la página busca versiones nuevas sola (al abrir, al volver a la pestaña, al
      recuperar internet y cada 3 minutos). Si no hay un relato a medio escribir, se recarga sin que nadie
      pulse nada; si lo hay, muestra un aviso con el botón «Actualizar» para no perder lo escrito. */
-  var swReg = null, recargado = false;
-  function hayTrabajoAMedias() { return !!($('#narr').value.trim() || $('#resp').value.trim()); }
+  var swReg = null, recargado = false, ultimaAccion = 0;
+  ['input', 'keydown', 'pointerdown'].forEach(function (ev) { document.addEventListener(ev, function () { ultimaAccion = Date.now(); }, true); });
+  /* Solo se considera «a medias» si la persona escribió o tocó algo en los últimos 2 minutos; el borrador del relato
+     se guarda solo en el dispositivo, así que recargar en una pausa larga no pierde nada. */
+  function hayTrabajoAMedias() { return !!($('#narr').value.trim() || $('#resp').value.trim()) && (Date.now() - ultimaAccion) < 120000; }
   function aplicarNuevaVersion() {
     if (recargado) return; recargado = true;
     location.reload();
