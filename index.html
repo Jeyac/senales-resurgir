@@ -98,7 +98,9 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 /* Barra: pestañas y recorrido */
 .bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; margin: 16px 0; }
 .tabs { display: inline-flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
-.tab { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 700; padding: 8px 16px; cursor: pointer; border-radius: 999px; }
+.tab { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-weight: 700; padding: 9px 18px; cursor: pointer; border-radius: 999px; transition: background-color .15s, color .15s; }
+.tab:hover:not([aria-selected="true"]) { background: var(--accent-soft); color: var(--accent); }
+.tab[aria-selected="true"] { box-shadow: 0 3px 10px rgba(11, 74, 158, .25); }
 .tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
 .tab:focus-visible, .btn:focus-visible, .pill:focus-visible, .stp:focus-visible, .q:focus-visible, .dimbar:focus-visible, .dirbtn:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -155,14 +157,28 @@ textarea { resize: vertical; line-height: 1.45; }
 .pista.on { border-style: solid; border-color: transparent; background: var(--ok-soft); color: var(--ok); }
 .pista.on::before { content: "✓ "; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
-.btn { appearance: none; font: inherit; font-weight: 700; border-radius: 10px; padding: 9px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
-.btn:hover { border-color: var(--accent); }
-.btn[disabled] { opacity: .5; cursor: not-allowed; }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn.small { padding: 5px 10px; font-size: 13px; }
+/* Botones: una sola familia, con jerarquía clara (primario, secundario, discreto, peligro) y respuesta al tacto. */
+.btn { appearance: none; font: inherit; font-weight: 700; font-size: 14.5px; line-height: 1.2; border-radius: 12px; padding: 10px 16px; min-height: 40px; cursor: pointer;
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 1px 2px rgba(16, 41, 74, .06); transition: transform .12s ease, box-shadow .15s ease, border-color .15s ease, background-color .15s ease, color .15s ease; -webkit-tap-highlight-color: transparent; }
+.btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 41, 74, .12); }
+.btn:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(16, 41, 74, .08); }
+.btn:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 1px; border-color: var(--accent); }
+.btn[disabled] { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn.primary { background: linear-gradient(135deg, var(--accent) 0%, var(--sky) 140%); color: var(--accent-ink); border-color: transparent; box-shadow: 0 6px 16px rgba(11, 74, 158, .28); }
+.btn.primary:hover { color: var(--accent-ink); filter: brightness(1.06); box-shadow: 0 8px 20px rgba(11, 74, 158, .34); }
+.btn.primary[disabled] { background: var(--line); color: var(--muted); box-shadow: none; filter: none; }
+.btn.small { padding: 6px 12px; min-height: 32px; font-size: 13px; border-radius: 10px; gap: 6px; }
 .btn.small svg.i { width: 16px; height: 16px; }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--muted); }
+.btn.ghost:hover { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 .btn.danger { color: var(--bad); }
-.btn.rec { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.btn.danger:hover { border-color: var(--bad); background: var(--bad-soft); color: var(--bad); }
+.btn.ghost.danger:hover { background: var(--bad-soft); }
+.btn.rec { background: var(--bad-soft); color: var(--bad); border-color: transparent; animation: late 1.2s ease-in-out infinite; }
+@keyframes late { 0%, 100% { box-shadow: 0 0 0 0 rgba(179, 38, 30, .35); } 50% { box-shadow: 0 0 0 6px rgba(179, 38, 30, 0); } }
+.savebar .btn.primary { padding: 13px 22px; font-size: 16px; border-radius: 14px; }
+@media (prefers-reduced-motion: reduce) { .btn, .slot { transition: none; } .btn:hover { transform: none; } .btn.rec { animation: none; } }
 .status { min-height: 20px; margin-top: 8px; font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .status.err { color: var(--bad); }
 .dots { display: inline-flex; gap: 4px; }
@@ -190,8 +206,10 @@ details ul { margin: 6px 0 0; padding-left: 18px; }
 .fhead label, .fhead .lab { font-weight: 700; font-size: 14px; display: flex; gap: 8px; align-items: center; }
 .num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; padding: 0 6px; font-variant-numeric: tabular-nums; }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.pill { appearance: none; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
-.pill:hover { border-color: var(--accent); }
+.pill { appearance: none; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--ink); background: var(--bg); border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 14px; min-height: 34px; transition: border-color .15s, background-color .15s, color .15s, transform .12s; -webkit-tap-highlight-color: transparent; }
+.pill:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.pill:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 1px; }
+.pill[aria-pressed="true"] { box-shadow: 0 3px 10px rgba(11, 74, 158, .22); }
 .pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .pill[aria-pressed="true"][data-v="Avance"] { background: var(--ok); border-color: var(--ok); color: var(--surface); }
 .pill[aria-pressed="true"][data-v="Retroceso"] { background: var(--bad); border-color: var(--bad); color: var(--surface); }
@@ -260,17 +278,32 @@ a.btn { text-decoration: none; }
 
 .drop { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; border: 2px dashed var(--line); border-radius: 12px; padding: 12px 14px; color: var(--muted); font-size: 13.5px; }
 .drop.sobre { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
-.lote-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; }
-.lote-lista li { display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--surface); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
-.lote-lista li span { min-width: 0; overflow-wrap: anywhere; }
+/* Formularios de señales: una pestaña por señal, se puede saltar entre ellas sin perder nada. */
+.lote-top { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; width: 100%; }
+.slots { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.slot { appearance: none; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 13.5px; transition: border-color .15s, box-shadow .15s, transform .15s; max-width: 100%; }
+.slot:hover { border-color: var(--accent); transform: translateY(-1px); }
+.slot .num { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 800; font-size: 12.5px; flex: none; }
+.slot .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch; }
+.slot .st { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--bg); color: var(--muted); flex: none; }
+.slot.proceso .st { background: var(--warn-soft); color: var(--warn); }
+.slot.lista .st { background: var(--ok-soft); color: var(--ok); }
+.slot.lista .num { background: var(--ok); color: #fff; }
+.slot[aria-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface); }
+.slot[aria-selected="true"] .num { background: var(--accent); color: var(--accent-ink); }
+.slot .x { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; border-radius: 50%; flex: none; }
+.slot .x:hover { color: var(--bad); background: var(--bad-soft); }
+.slot.add { border-style: dashed; color: var(--accent); background: transparent; font-weight: 700; }
+.slot.add:hover { background: var(--accent-soft); }
+.lote-acts:empty { display: none; }
 .div-hint { margin-top: 8px; background: var(--warn-soft); border-radius: 10px; padding: 8px 12px; font-size: 13.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .modal { position: fixed; inset: 0; z-index: 40; background: rgba(10, 20, 34, .55); display: grid; place-items: center; padding: 16px; }
 .modal-box { background: var(--surface); color: var(--ink); border-radius: 16px; width: min(980px, 100%); max-height: 92vh; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
 .modal-head, .modal-foot { padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .modal-foot { border-bottom: 0; border-top: 1px solid var(--line); }
 .modal-body { overflow: auto; padding: 16px; background: #fff; color: #1a1a1a; }
-.lote { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding: 8px 10px; background: var(--accent-soft); border-radius: 10px; }
-.lote select { width: auto; background: var(--surface); }
+.lote { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; padding: 10px 12px; background: var(--accent-soft); border-radius: 14px; }
+.lote select { width: auto; background: var(--surface); font: inherit; font-weight: 700; color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 10px; }
 .consent { z-index: 45; }
 .consent .modal-box { width: min(760px, 100%); }
 .consent-body { font-size: 15px; line-height: 1.5; }
@@ -428,15 +461,19 @@ a.btn { text-decoration: none; }
           </div>
           <p class="hint">¿Qué ocurrió esta semana que te llamó la atención? ¿Dónde y con quién? ¿Qué hizo diferente alguien respecto a antes?</p>
           <div class="lote">
-            <label for="cuantas" class="hint">¿Cuántas señales vas a registrar en esta entrada?</label>
-            <select id="cuantas">
-              <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
-              <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
-            </select>
-            <span class="hint" id="lote-info"></span>
-            <button class="btn small danger" id="btn-lote-clear" type="button" hidden>Descartar las que ya están listas</button>
-            <button class="btn small" id="btn-unir" type="button" hidden>Unir de nuevo en una sola señal</button>
-            <ul class="lote-lista" id="lote-lista" hidden></ul>
+            <div class="lote-top">
+              <label for="cuantas" class="hint"><strong>Señales en esta entrada</strong></label>
+              <select id="cuantas" aria-label="Cuántas señales vas a registrar">
+                <option value="1">1 señal</option><option value="2">2 señales</option><option value="3">3 señales</option><option value="4">4 señales</option><option value="5">5 señales</option>
+                <option value="6">6 señales</option><option value="7">7 señales</option><option value="8">8 señales</option><option value="9">9 señales</option><option value="10">10 señales</option>
+              </select>
+              <span class="hint" id="lote-info"></span>
+            </div>
+            <div class="slots" id="lote-lista" role="tablist" aria-label="Formularios de señales" hidden></div>
+            <div class="actions lote-acts" style="margin-top:0">
+              <button class="btn small ghost danger" id="btn-lote-clear" type="button" hidden>Descartar las demás señales</button>
+              <button class="btn small ghost" id="btn-unir" type="button" hidden>Unir de nuevo en una sola señal</button>
+            </div>
           </div>
           <div class="narr-top">
             <label for="narr" class="hint">Narrativa <span id="narr-count"></span></label>
@@ -1584,14 +1621,21 @@ a.btn { text-decoration: none; }
       al.textContent = ''; al.append(h('strong', { text: 'Avisos del asistente' }), h('ul', null, items.map(function (a) { return h('li', { text: a }); }))); al.hidden = false;
     } else { al.hidden = true; al.textContent = ''; }
     var min = !!(S.ficha.quePaso && S.ficha.dimension && S.ficha.direccion);
+    /* Cada cambio de la ficha se refleja en la casilla de la señal activa y se guarda en el dispositivo. */
+    if (Array.isArray(lote) && lote.length && !S.saving) { try { volcarActivo(); if (lote.length > 1) pintarPestanas(); } catch (e) {} }
     var btn = $('#btn-save');
     var quienReg = !!quienRegistra();
     btn.disabled = !min || !quienReg || S.saving;
     var total = cuantas();
-    if (total > 1 && lote.length + 1 < total) btn.textContent = 'Lista: pasar a la señal ' + (lote.length + 2) + ' de ' + total;
-    else if (total > 1) btn.textContent = 'Guardar las ' + total + ' señales';
+    if (total > 1) {
+      var otras = lote.filter(function (r, i) { return i !== slotActivo && estadoSlot(r) !== 'vacia'; });
+      var listasOtras = otras.filter(function (r) { return estadoSlot(r) === 'lista'; }).length;
+      var n = otras.length + (min ? 1 : 0);
+      btn.textContent = n > 1 ? 'Guardar las ' + n + ' señales' : 'Guardar la señal';
+      if (listasOtras < otras.length) btn.textContent += ' (' + (otras.length - listasOtras) + ' por completar)';
+    }
     else btn.textContent = ok === 8 ? 'Confirmar y guardar' : 'Guardar con ' + (8 - ok) + ' pendiente' + (8 - ok === 1 ? '' : 's');
-    if (!min) setStatus('#save-status', 'Para guardar se necesitan al menos: qué pasó, dimensión y dirección.');
+    if (!min) setStatus('#save-status', 'Para guardar se necesitan al menos: qué pasó, dimensión y dirección' + (total > 1 ? ' en la señal ' + (slotActivo + 1) : '') + '.');
     else if (!quienReg) setStatus('#save-status', 'Elige quién registra la señal en «Registrada por» para poder guardar.', true);
     else if (!S.saving) setStatus('#save-status', '');
   }
@@ -1659,28 +1703,125 @@ a.btn { text-decoration: none; }
   }
 
   /* ---------- Narrativa: pistas, conteo y borrador ---------- */
-  var lote = [], ultimaEntrada = [];
-  function cuantas() { var el = $('#cuantas'); return Math.max(1, Math.min(10, (el && +el.value) || 1)); }
+  /* ---------- Varias señales en una entrada: un formulario por señal ----------
+     «lote» guarda todas las señales de la entrada; la señal activa (slotActivo) vive en el formulario y se vuelca
+     a su casilla al cambiar de pestaña o al guardar. Se puede saltar entre señales sin perder nada. */
+  var lote = [], slotActivo = 0, ultimaEntrada = [];
+  function nuevoSlot() { return { narrativa: '', estado: {}, archivos: [], createdAt: Date.now() + Math.floor(Math.random() * 100000), vacio: true }; }
+  lote = [nuevoSlot()];
+  function cuantas() { return lote.length; }
   function faltaMinimo(rec) {
     var f = [];
     if (!rec.quePaso) f.push('qué pasó'); if (!rec.dimension) f.push('dimensión'); if (!rec.direccion) f.push('dirección');
     return f;
   }
-  function pintarLote() {
-    var total = cuantas();
-    $('#lote-info').textContent = grupoDiv ? 'Dividí el relato por fechas en ' + total + ' señales. Estás viendo una; las demás ya están llenas y se guardan juntas.'
-      : total > 1 ? 'Estás en la señal ' + (lote.length + 1) + ' de ' + total + (lote.length ? ' · ' + lote.length + ' lista' + (lote.length === 1 ? '' : 's') + ', se enviarán todas al final' : '') : '';
-    $('#btn-lote-clear').hidden = !lote.length || !!grupoDiv;
+  function estadoSlot(rec) {
+    if (!rec) return 'vacia';
+    if (rec.quePaso && rec.dimension && rec.direccion) return 'lista';
+    if (String(rec.narrativa || '').trim() || rec.quePaso || rec.queCambio) return 'proceso';
+    return 'vacia';
+  }
+  /* Vuelca lo que hay en el formulario a la casilla de la señal activa. */
+  function volcarActivo() {
+    var prev = lote[slotActivo] || nuevoSlot();
+    var r = registroActual();
+    r.createdAt = prev.createdAt || r.createdAt; r.auto = !!prev.auto; r.contexto = S.contexto || '';
+    r.archivosS = S.archivos.slice(); r.alertas = S.alertas.slice(); r.hechoObs = S.hechoObs; r.analizado = S.analizado; r.touched = Object.assign({}, S.touched);
+    r.vacio = estadoSlot(r) === 'vacia';
+    lote[slotActivo] = r;
+    guardarSlotsLocal();
+    return r;
+  }
+  function etiquetaSlot(rec, i) {
+    var st = estadoSlot(rec);
+    if (st === 'vacia') return 'Señal ' + (i + 1);
+    var base = rec.fechaHecho ? fmtISO(rec.fechaHecho) : '';
+    var txt = String(rec.quePaso || rec.narrativa || '').trim().replace(/\s+/g, ' ').replace(/^el\s+\d{1,2}\s+de\s+[a-záéíóú]+(\s+de\s+\d{4})?,?\s*/i, '');
+    txt = txt.charAt(0).toUpperCase() + txt.slice(1);
+    return (base ? base + ' · ' : '') + (txt ? corto(txt, 28) : 'Señal ' + (i + 1));
+  }
+  function pintarLote() { pintarPestanas(); renderReview(); }
+  function pintarPestanas() {
+    var live = lote.slice(); live[slotActivo] = Object.assign({}, lote[slotActivo] || {}, registroActual(), { narrativa: $('#narr').value });
+    var total = live.length, listas = live.filter(function (r) { return estadoSlot(r) === 'lista'; }).length;
+    var sel = $('#cuantas'); if (sel && +sel.value !== total) sel.value = String(total);
+    $('#lote-info').textContent = total > 1
+      ? 'Estás en la señal ' + (slotActivo + 1) + ' de ' + total + ' · ' + listas + ' lista' + (listas === 1 ? '' : 's') + (grupoDiv ? ' · divididas por fecha' : '') + '. Toca una pestaña para cambiar; se guardan todas juntas.'
+      : 'Elige cuántas señales vas a contar y aparecerá un formulario por cada una.';
+    $('#btn-lote-clear').hidden = total <= 1;
     $('#btn-unir').hidden = !grupoDiv;
-    var ul = $('#lote-lista'); ul.textContent = ''; ul.hidden = !lote.length;
-    lote.forEach(function (rec, i) {
-      var falta = faltaMinimo(rec);
-      ul.append(h('li', null,
-        h('span', null, h('strong', { text: (rec.fechaHecho ? fmtISO(rec.fechaHecho) : 'Sin fecha') + ' · ' }), String(rec.quePaso || '(sin «qué pasó»)').slice(0, 110) + (String(rec.quePaso || '').length > 110 ? '…' : ''),
-          falta.length ? h('span', { class: 'chip falta', style: 'margin-left:6px', text: 'Falta: ' + falta.join(', ') }) : null),
-        h('button', { class: 'btn small', type: 'button', text: 'Revisar', onclick: function () { revisarDelLote(i); } })));
+    var box = $('#lote-lista'); box.textContent = ''; box.hidden = total <= 1;
+    live.forEach(function (rec, i) {
+      var st = estadoSlot(rec), falta = faltaMinimo(rec);
+      var b = h('button', { class: 'slot ' + st, type: 'button', role: 'tab', title: st === 'lista' ? 'Lista para guardar' : st === 'proceso' ? 'Falta: ' + falta.join(', ') : 'Sin empezar', onclick: function () { irASlot(i); } });
+      b.setAttribute('aria-selected', i === slotActivo ? 'true' : 'false');
+      b.append(h('span', { class: 'num', text: st === 'lista' ? '✓' : String(i + 1) }), h('span', { class: 'lbl', text: etiquetaSlot(rec, i) }),
+        h('span', { class: 'st', text: st === 'lista' ? 'Lista' : st === 'proceso' ? 'En proceso' : 'Vacía' }));
+      if (total > 1 && !rec.auto) {
+        var x = h('button', { class: 'x', type: 'button', text: '×', title: 'Quitar esta señal', 'aria-label': 'Quitar la señal ' + (i + 1) });
+        x.addEventListener('click', function (e) { e.stopPropagation(); quitarSlot(i); });
+        b.append(x);
+      }
+      box.append(b);
     });
-    renderReview();
+    if (total < 10 && !grupoDiv) box.append(h('button', { class: 'slot add', type: 'button', text: '+ Agregar señal', onclick: agregarSlot }));
+  }
+  function irASlot(i) {
+    if (i === slotActivo || !lote[i]) { pintarLote(); return; }
+    volcarActivo();
+    slotActivo = i;
+    cargarRegistro(lote[i]); pintarLote();
+    guardarSlotsLocal();
+    flash('Ahora estás en la señal ' + (i + 1) + ' de ' + lote.length + '.');
+    try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+  }
+  function fijarCantidad(n) {
+    n = Math.max(1, Math.min(10, n | 0));
+    volcarActivo();
+    while (lote.length < n) lote.push(nuevoSlot());
+    while (lote.length > n) {
+      var ult = lote.length - 1;
+      if (ult === slotActivo || estadoSlot(lote[ult]) !== 'vacia') break; /* no se borra nada escrito */
+      lote.pop();
+    }
+    if (lote.length > n) flash('Solo quité las señales vacías: las que tienen algo escrito se quitan con la × de su pestaña.');
+    pintarLote(); guardarSlotsLocal();
+  }
+  function agregarSlot() {
+    if (lote.length >= 10) return;
+    volcarActivo(); lote.push(nuevoSlot()); irASlot(lote.length - 1);
+  }
+  function quitarSlot(i) {
+    if (lote.length <= 1) return;
+    var est = estadoSlot(i === slotActivo ? volcarActivo() : lote[i]);
+    if (est !== 'vacia' && !window.confirm('¿Quitar la señal ' + (i + 1) + '? Se perderá lo que lleva escrito.')) return;
+    lote.splice(i, 1);
+    if (i === slotActivo) { slotActivo = Math.max(0, i - 1); cargarRegistro(lote[slotActivo]); }
+    else if (i < slotActivo) slotActivo--;
+    pintarLote(); guardarSlotsLocal();
+    flash('Señal quitada. Quedan ' + lote.length + ' en esta entrada.');
+  }
+  /* Las señales de la entrada se guardan en el dispositivo mientras se trabaja, por si se cierra la página. */
+  var slotsTimer = null;
+  function guardarSlotsLocal() {
+    clearTimeout(slotsTimer);
+    slotsTimer = setTimeout(function () {
+      try {
+        var data = lote.map(function (r) { var c = Object.assign({}, r); delete c.archivosS; return c; });
+        if (data.length <= 1 && estadoSlot(data[0]) === 'vacia') localStorage.removeItem('senales-slots');
+        else localStorage.setItem('senales-slots', JSON.stringify({ lote: data, activo: slotActivo, grupoDiv: grupoDiv }));
+      } catch (e) {}
+    }, 400);
+  }
+  function restaurarSlots() {
+    try {
+      var raw = localStorage.getItem('senales-slots'); if (!raw) return false;
+      var d = JSON.parse(raw); if (!d || !Array.isArray(d.lote) || !d.lote.length) return false;
+      lote = d.lote.map(function (r) { r.archivos = []; return r; }); slotActivo = Math.min(d.activo | 0, lote.length - 1); grupoDiv = d.grupoDiv || null;
+      cargarRegistro(lote[slotActivo]); pintarLote();
+      if (lote.length > 1) flash('Recuperé las ' + lote.length + ' señales de tu última entrada.');
+      return true;
+    } catch (e) { return false; }
   }
   /* ---------- División del relato por fechas ---------- */
   var grupoDiv = null;
@@ -1701,20 +1842,18 @@ a.btn { text-decoration: none; }
       S.estado[k] = (rec.estado && rec.estado[k]) || (S.ficha[k] ? 'narrativa' : 'falta');
       if (S.estado[k] === 'manual') S.touched[k] = true;
     });
-    S.analizado = true; S.hechoObs = rec.hechoObservable; S.archivos = (rec.archivos || []).slice();
+    S.analizado = rec.analizado !== undefined ? !!rec.analizado : !!(rec.quePaso || rec.narrativa);
+    S.hechoObs = rec.hechoObs !== undefined ? rec.hechoObs : (rec.hechoObservable === false ? false : null);
+    S.archivos = (rec.archivosS || rec.archivos || []).slice();
+    S.alertas = (rec.alertas || []).slice(); if (rec.touched) S.touched = Object.assign({}, rec.touched);
     S.contexto = rec.contexto || S.contexto;
     $('#narr').value = String(rec.narrativa || '').split('\n\nAclaración: ')[0]; $('#resp').value = '';
     var t = $('#narr').value, w = t.trim() ? t.trim().split(/\s+/).length : 0;
     $('#narr-count').textContent = w ? '· ' + w + ' palabra' + (w === 1 ? '' : 's') : '';
+    PISTAS.forEach(function (p) { p.el.classList.toggle('on', p.re.test(t)); });
+    try { pintarMapaActores(t); } catch (e) {}
+    setStatus('#est-status', '');
     paintAll();
-  }
-  function revisarDelLote(i) {
-    var sel = lote[i]; if (!sel) return;
-    var actual = registroActual(); actual.auto = !!grupoDiv; actual.contexto = S.contexto || '';
-    lote.splice(i, 1, actual);
-    cargarRegistro(sel); pintarLote();
-    flash('Ahora ves la señal del ' + (sel.fechaHecho ? fmtISO(sel.fechaHecho) : 'relato') + '. La anterior quedó guardada en la lista.');
-    try { $('#card-3').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
   }
   function pintarHintDivision() {
     var hint = $('#div-hint'); if (!hint) return;
@@ -1726,24 +1865,30 @@ a.btn { text-decoration: none; }
     if (grupoDiv) return false;
     var texto = $('#narr').value.trim(), segs = dividirPorFechas(texto);
     if (!segs) { pintarHintDivision(); return false; }
-    var libres = 10 - lote.length;
+    /* Las señales nuevas ocupan primero las casillas vacías de la entrada; si faltan, se agregan (máximo 10). */
+    var vacias = lote.filter(function (r, i) { return i !== slotActivo && estadoSlot(r) === 'vacia'; }).length;
+    var libres = Math.max(0, 10 - (lote.length - vacias));
     if (libres < 2) return false;
     while (segs.length > libres) { var u = segs.pop(); segs[segs.length - 1].texto += ' ' + u.texto; }
-    grupoDiv = { original: texto };
+    grupoDiv = { original: texto, slot: slotActivo };
     S.contexto = texto + ($('#resp').value.trim() ? '\n' + $('#resp').value.trim() : '');
-    segs.slice(1).forEach(function (sg) { lote.push(registroDesde(estructurarLocal(sg.texto, S.contexto), sg.texto)); });
+    var nuevos = segs.slice(1).map(function (sg) { return registroDesde(estructurarLocal(sg.texto, S.contexto), sg.texto); });
+    lote = lote.filter(function (r, i) { return i === slotActivo || estadoSlot(r) !== 'vacia'; });
+    slotActivo = Math.min(slotActivo, lote.length - 1);
+    var args = [slotActivo + 1, 0].concat(nuevos); Array.prototype.splice.apply(lote, args);
     $('#narr').value = segs[0].texto;
-    $('#cuantas').value = String(lote.length + 1);
     pintarHintDivision(); pintarLote();
     estructurar();
-    flash('Dividí el relato en ' + segs.length + ' señales, una por fecha. Revisa cada una en la lista y guárdalas juntas.');
+    flash('Dividí el relato en ' + segs.length + ' señales, una por fecha. Cada una tiene su pestaña; revísalas y guárdalas juntas.');
     return true;
   }
   function unirDeNuevo() {
     if (!grupoDiv) return;
-    lote = lote.filter(function (r) { return !r.auto; });
     var original = grupoDiv.original; grupoDiv = null; S.contexto = '';
-    resetState(); $('#narr').value = original; $('#cuantas').value = String(Math.min(10, lote.length + 1));
+    var yo = lote[slotActivo];
+    lote = lote.filter(function (r) { return !r.auto; });
+    slotActivo = Math.max(0, lote.indexOf(yo));
+    resetState(); $('#narr').value = original;
     pintarLote(); updateNarr(); estructurar();
     flash('El relato volvió a ser una sola señal.');
   }
@@ -1765,6 +1910,7 @@ a.btn { text-decoration: none; }
     clearTimeout(draftTimer);
     draftTimer = setTimeout(function () {
       try { if (t.trim()) localStorage.setItem('senales-borrador', t); else localStorage.removeItem('senales-borrador'); } catch (e) {}
+      if (Array.isArray(lote) && lote.length) { try { volcarActivo(); if (lote.length > 1) pintarPestanas(); } catch (e) {} }
     }, 500);
   }
 
@@ -1954,27 +2100,22 @@ a.btn { text-decoration: none; }
   }
   async function guardar() {
     if (S.saving) return;
-    var rec = registroActual();
+    var rec = volcarActivo();
     if (!(rec.quePaso && rec.dimension && rec.direccion) || !rec.registradoPor) return;
-    /* Varias señales en una entrada: cada una se deja lista y, al completar la última, se envían todas juntas. */
-    var total = cuantas();
-    if (lote.length + 1 < total) {
-      lote.push(rec);
-      flash('Señal ' + lote.length + ' de ' + total + ' lista. Cuenta la siguiente.');
-      limpiar(true); pintarLote();
-      try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
-      return;
-    }
-    /* Todas las señales de la entrada llevan quién registra; las que salieron de dividir se revisan antes de enviar. */
+    /* Varias señales en una entrada: se envían juntas todas las que tengan algo escrito; las vacías se ignoran. */
     var p = quienRegistra();
-    lote.forEach(function (x) { if (p) { x.registradoPor = p.n; x.registradoCargo = p.c; x.registradoComponente = p.a; } });
-    var incompleta = lote.filter(function (x) { return faltaMinimo(x).length; })[0];
+    var conAlgo = lote.map(function (x, i) { return { x: x, i: i }; }).filter(function (o) { return estadoSlot(o.x) !== 'vacia'; });
+    conAlgo.forEach(function (o) { if (p) { o.x.registradoPor = p.n; o.x.registradoCargo = p.c; o.x.registradoComponente = p.a; } });
+    var incompleta = conAlgo.filter(function (o) { return faltaMinimo(o.x).length; })[0];
     if (incompleta) {
-      setStatus('#save-status', 'La señal del ' + (incompleta.fechaHecho ? fmtISO(incompleta.fechaHecho) : 'relato') + ' necesita ' + faltaMinimo(incompleta).join(', ') + '. Pulsa «Revisar» en esa señal y complétala.', true);
+      setStatus('#save-status', 'La señal ' + (incompleta.i + 1) + ' necesita ' + faltaMinimo(incompleta.x).join(', ') + '. Te llevo a ella para completarla.', true);
+      irASlot(incompleta.i);
+      setStatus('#save-status', 'La señal ' + (incompleta.i + 1) + ' necesita ' + faltaMinimo(incompleta.x).join(', ') + ' antes de guardar todas.', true);
       return;
     }
-    var todos = lote.concat([rec]).sort(function (a, b) { return String(a.fechaHecho || '9999').localeCompare(String(b.fechaHecho || '9999')) || a.createdAt - b.createdAt; });
-    var enviados = [], enEspera = 0;
+    var todos = conAlgo.map(function (o) { var c = Object.assign({}, o.x); delete c.archivosS; delete c.touched; delete c.alertas; delete c.vacio; return c; })
+      .sort(function (a, b) { return String(a.fechaHecho || '9999').localeCompare(String(b.fechaHecho || '9999')) || a.createdAt - b.createdAt; });
+    var total = todos.length, enviados = [], enEspera = 0;
     S.saving = true; renderReview(); setStatus('#save-status', total > 1 ? 'Guardando ' + total + ' señales…' : 'Guardando…');
     try {
       for (var i = 0; i < todos.length; i++) {
@@ -1984,26 +2125,26 @@ a.btn { text-decoration: none; }
       }
       guardarLocales();
       ultimaEntrada = todos.slice();
-      lote = []; grupoDiv = null; S.contexto = '';
+      lote = [nuevoSlot()]; slotActivo = 0; grupoDiv = null; S.contexto = '';
+      try { localStorage.removeItem('senales-slots'); } catch (e2) {}
       renderRecords();
       flash(enEspera ? 'Sin internet: ' + (total > 1 ? 'las ' + total + ' señales quedaron guardadas en este dispositivo y se enviarán solas' : 'la señal quedó guardada en este dispositivo y se enviará sola') + ' al volver la conexión.'
         : total > 1 ? 'Se enviaron las ' + total + ' señales al registro de Resurgir en SharePoint.' : 'Señal enviada al registro de Resurgir en SharePoint.');
-      $('#cuantas').value = '1'; pintarLote();
-      limpiar(true);
+      limpiar(true); pintarLote();
       setStatus('#save-status', (enEspera ? 'Guardado en este dispositivo; se sincronizará con SharePoint cuando haya internet.' : 'Guardado.') + ' Si quieres, genera ahora el informe de análisis de lo que acabas de registrar.');
       try { $('#card-1').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     } catch (e) {
-      /* Quedan pendientes solo las que no se enviaron: una vuelve a la ficha y las demás a la lista. */
-      var faltan = todos.filter(function (x) { return enviados.indexOf(x) < 0; });
-      if (enviados.length && faltan.length) { lote = faltan.slice(1); cargarRegistro(faltan[0]); }
-      else lote = faltan.filter(function (x) { return x !== rec; });
-      guardarLocales();
+      /* Si falló a mitad del envío, quedan en la entrada solo las que no se enviaron. */
+      var idsOk = enviados.map(function (x) { return x.createdAt; });
+      lote = lote.filter(function (x) { return idsOk.indexOf(x.createdAt) < 0 && estadoSlot(x) !== 'vacia'; });
+      if (!lote.length) lote = [nuevoSlot()];
+      slotActivo = 0; cargarRegistro(lote[0]);
+      guardarLocales(); guardarSlotsLocal();
       var c = e && e.code, msg = 'No se pudo enviar el registro (' + (c || 'error') + '). Intenta de nuevo; la ficha sigue aquí.';
       if (c === 'invalid_argument') msg = 'No tienes permiso para guardar en el registro compartido. Se necesita el rol de Colaborador o superior.';
       else if (c === 'quota_exceeded') msg = 'El registro compartido está lleno. Avisa a quien administra la página.';
       else if (c === 'revoked') msg = 'Tu acceso al registro cambió. Recarga la página.';
-      /* Si falló a mitad del envío, quedan pendientes solo las que no se enviaron. */
-      $('#cuantas').value = String(Math.min(10, lote.length + 1)); pintarLote(); renderRecords();
+      pintarLote(); renderRecords();
       setStatus('#save-status', msg, true);
     } finally { S.saving = false; renderReview(); }
   }
@@ -2552,7 +2693,8 @@ a.btn { text-decoration: none; }
   updateNarr();
   $('#narr').addEventListener('input', updateNarr);
   $('#resp').addEventListener('input', vivoResp);
-  $('#cuantas').addEventListener('change', function () { if (cuantas() < lote.length + 1) $('#cuantas').value = String(lote.length + 1); pintarLote(); });
+  $('#cuantas').addEventListener('change', function () { fijarCantidad(+$('#cuantas').value); });
+  restaurarSlots();
   $('#btn-dividir').addEventListener('click', intentarDividir);
   $('#btn-unir').addEventListener('click', unirDeNuevo);
   $('#narr').addEventListener('change', function () { intentarDividir(); });
@@ -2562,7 +2704,12 @@ a.btn { text-decoration: none; }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('#modal-informe').hidden = true; });
   $('#inf-word').addEventListener('click', descargarInforme);
   $('#inf-guardar').addEventListener('click', guardarInforme);
-  $('#btn-lote-clear').addEventListener('click', function () { lote = []; pintarLote(); flash('Se descartaron las señales que estaban listas.'); });
+  $('#btn-lote-clear').addEventListener('click', function () {
+    var otras = lote.filter(function (r, i) { return i !== slotActivo && estadoSlot(r) !== 'vacia'; }).length;
+    if (otras && !window.confirm('¿Descartar las otras ' + otras + ' señal' + (otras === 1 ? '' : 'es') + ' de esta entrada? Solo se conserva la que estás viendo.')) return;
+    volcarActivo(); lote = [lote[slotActivo]]; slotActivo = 0; grupoDiv = null;
+    pintarLote(); guardarSlotsLocal(); flash('Se descartaron las demás señales; queda solo esta.');
+  });
   $('#por-nombre').addEventListener('input', renderReview);
   $('#por').addEventListener('change', function () { pintarQuien(); renderReview(); if ($('#por').value === '__otra') $('#por-nombre').focus(); try { localStorage.setItem('senales-por', $('#por').value.trim()); } catch (e) {} });
   $('#gate-form').addEventListener('submit', function (e) { e.preventDefault(); probarClave($('#gate-key').value); });
@@ -2579,9 +2726,9 @@ a.btn { text-decoration: none; }
     /* Los archivos adjuntos a una ficha que se descarta no quedan guardados. */
     S.archivos.forEach(function (a) { if (assetsApi) assetsApi.delete(a.id).catch(function () {}); });
     setStatus('#evid-status', '');
-    if (grupoDiv) { lote = lote.filter(function (r) { return !r.auto; }); grupoDiv = null; $('#cuantas').value = String(Math.min(10, lote.length + 1)); }
+    if (grupoDiv) { var yo = lote[slotActivo]; lote = lote.filter(function (r) { return !r.auto; }); slotActivo = Math.max(0, lote.indexOf(yo)); grupoDiv = null; }
     S.contexto = '';
-    limpiar(false); pintarLote();
+    limpiar(false); lote[slotActivo] = nuevoSlot(); pintarLote(); guardarSlotsLocal();
   });
   $('#btn-save').addEventListener('click', guardar);
   $('#btn-csv').addEventListener('click', descargar);
