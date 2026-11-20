@@ -214,7 +214,7 @@ details ul { margin: 6px 0 0; padding-left: 18px; }
 .pill[aria-pressed="true"][data-v="Avance"] { background: var(--ok); border-color: var(--ok); color: var(--surface); }
 .pill[aria-pressed="true"][data-v="Retroceso"] { background: var(--bad); border-color: var(--bad); color: var(--surface); }
 .pill[aria-pressed="true"][data-v="Neutro/incierto"] { background: var(--warn); border-color: var(--warn); color: var(--surface); }
-.chip { font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .chip.narrativa { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
 .chip.inferido { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 .chip.falta { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
@@ -285,13 +285,25 @@ a.btn { text-decoration: none; }
 .slot:hover { border-color: var(--accent); transform: translateY(-1px); }
 .slot .num { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 800; font-size: 12.5px; flex: none; }
 .slot .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch; }
-.slot .st { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--bg); color: var(--muted); flex: none; }
+.slot .st { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--bg); color: var(--muted); flex: none; }
 .slot.proceso .st { background: var(--warn-soft); color: var(--warn); }
 .slot.lista .st { background: var(--ok-soft); color: var(--ok); }
 .slot.lista .num { background: var(--ok); color: #fff; }
 .slot[aria-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface); }
 .slot[aria-selected="true"] .num { background: var(--accent); color: var(--accent-ink); }
-.slot .x { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; border-radius: 50%; flex: none; }
+.slot .x { appearance: none; border: 0; background: none; color: var(--muted); font: inherit; font-size: 17px; line-height: 1; width: 26px; height: 26px; display: grid; place-items: center; margin: -3px -6px -3px -2px; cursor: pointer; border-radius: 50%; flex: none; }
+/* Pantallas angostas (celular): objetivos táctiles más grandes, pestañas compactas y botón de guardar a todo lo ancho. */
+@media (max-width: 560px) {
+  .btn { min-height: 44px; }
+  .btn.small { min-height: 38px; padding: 7px 12px; }
+  .lote select { min-height: 42px; }
+  .slot { min-height: 42px; padding: 7px 12px 7px 7px; }
+  .slot .lbl { max-width: 13ch; }
+  .slot .x { width: 34px; height: 34px; font-size: 20px; margin: -6px -8px -6px -2px; }
+  .savebar { flex-direction: column; align-items: stretch; }
+  .savebar .btn.primary { width: 100%; }
+  .who { width: 100%; }
+}
 .slot .x:hover { color: var(--bad); background: var(--bad-soft); }
 .slot.add { border-style: dashed; color: var(--accent); background: transparent; font-weight: 700; }
 .slot.add:hover { background: var(--accent-soft); }
