@@ -2752,6 +2752,8 @@ a.btn { text-decoration: none; }
   use('sample').then(function (s) {
     sampleApi = s || (AI_FLOW_URL ? asistenteFlujo : reglasLocales);
     if (!s && !AI_FLOW_URL) document.querySelector('#nota-envio').textContent = 'La ficha se propone con reglas de palabras clave en tu propio dispositivo, sin inteligencia artificial: revisa y corrige cada campo. Al guardar, la ficha se envía al Excel de registros de Resurgir en SharePoint.';
+    /* Si al abrir se recuperó un relato sin ficha (por ejemplo tras una actualización), la ficha se vuelve a armar sola. */
+    if (sampleApi === reglasLocales && !S.analizado && $('#narr').value.trim().length >= 25 && $('#gate').hidden) setTimeout(function () { if (!S.busy && !S.analizado) estructurar(); }, 300);
   });
   $('#btn-copy').addEventListener('click', copiarPeticion);
   $('#btn-apply').addEventListener('click', aplicarManual);
